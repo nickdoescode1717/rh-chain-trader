@@ -1,0 +1,85 @@
+xit liquidity | Stress sell 10/25/50% of position against pool depth |
+| Related wallets | Synthetic clusters should lower confidence |
+| Stale approval | Force material snapshot change → must invalidate |
+| Kill switch | Open positions: halt new buys; sells per emergency policy only |
+
+---
+
+## 12. Smallest useful MVP
+
+**One sentence:** A Robinhood Chain indexer + dashboard that surfaces new Pons/Uniswap launches and watched-wallet buys with contract risk checks, source-linked reports, and **no trading**.
+
+**Build order:**  
+1) RPC + factory listeners + Postgres  
+2) Static/sim risk checks  
+3) ≤50 wallet watchlist  
+4) Report UI + alerts  
+5) Paper approval loop  
+
+**Explicitly defer:** X firehose, 400 wallets, multi-wallet execution, autonomous buys, 5% supply targets.
+
+---
+
+## 13. Most important questions before implementation
+
+1. **Jurisdiction / compliance:** Where are you located, and are you allowed to trade these assets? (Stock Tokens and some products are geo-restricted; this spec assumes self-custodied crypto on RH Chain, not brokerage.)  
+2. **Capital & loss limits:** Max portfolio, max per-trade, daily loss, max open positions?  
+3. **Quote asset:** ETH vs USDG vs other?  
+4. **Launchpad scope:** Pons-only first, or Uniswap Pools.trade too?  
+5. **X budget:** $0 (defer social), hundreds/mo (narrow), or enterprise?  
+6. **Custody model:** Hardware wallet approvals vs automated signer with strict policy?  
+7. **Primary alert channel:** Telegram, email, mobile push?  
+8. **Success metric for Phase 3:** e.g. alert precision, paper expectancy after costs—not vanity PnL.  
+9. **Who maintains the 400-wallet list?** Cold start with 50 high-quality > 400 noisy.  
+10. **Post-2026-09-29 gas:** Reconfirm strategy once subsidy ends.
+
+---
+
+## 14. Feasibility summary
+
+| Area | Feasible now | Needs custom infra | Unverified / gated |
+|------|--------------|--------------------|--------------------|
+| RH Chain reads/writes via RPC | Yes | Production archive + WSS | Public RPC alone insufficient |
+| Launchpad discovery | Yes if factories verified | Event indexers per launchpad | Exact Pons/Pools addresses & fee math must be confirmed on-chain |
+| Contract risk heuristics + sim | Partially | Continuous honeypot/tax heuristics | Novel scam patterns |
+| 400-wallet monitoring | Yes on-chain | Scaling & clustering analytics | “Smart money” labels are soft |
+| X monitoring at scale | Limited | Budget + provider choice | Full archive / firehose |
+| FCFS early entry edge | Uncertain | Low-latency submit path | No guaranteed priority |
+| Human-approved execution | Yes | Signer + policy engine | — |
+| Autonomous alpha | **Not assumed** | Long validation | — |
+
+---
+
+## 15. Immediate next build step (engineering)
+
+When you green-light implementation:
+
+1. Create private GitHub repo (or Origin `new_repo` via cloud agent).  
+2. Scaffold: `collectors/`, `research/`, `api/`, `web/`, `signer/` (stub), `docs/`.  
+3. Seed protocol registry manually after on-chain verification of factory addresses.  
+4. Ship Phase 1 dashboard before any execution code paths are reachable in prod configs.
+
+---
+
+*Sources consulted for ecosystem section: Robinhood Chain official docs (`docs.robinhood.com/chain`, connecting page), Blockscout explorer, Decrypt resource article (updated 2026-09-05), Dwellir Robinhood Chain overview, X API pricing secondary summaries (2026). Press metrics (fees, volumes) treated as directional only.*
+
+---
+
+## Appendix A — Research addendum (2026-09-08)
+
+Additional verified surfaces after deeper source pass:
+
+| Surface | Status | Detail |
+|---------|--------|--------|
+| Dune | Verified | Schema namespace `robinhood` |
+| Goldsky | Verified | Graph-compatible subgraphs / pipelines for RH Chain |
+| Bitquery | Verified | `EVM(network: robinhood)`; documents Pons + pools.trade contracts — re-confirm on Blockscout before hardcoding |
+| Uniswap on RH Chain | Verified | v2/v3/v4 + UniswapX; API with `chainId=4663`; example v4 PoolManager `0x8366a39cc670b4001a1121b8f6a443a643e40951` (from Uniswap deployments docs) |
+| Bridge withdrawals | Verified | Canonical Arbitrum-style bridge withdraw ~7-day challenge |
+| Stock Tokens | Verified | Geo-restricted (not for US persons; further CA/UK/CH restrictions) — hard-block as trading targets for this meme/utility agent |
+| Secondary launchpads (Flap, trench.today, etc.) | Unverified for product | Indexed by Bitquery only — do not ship until Blockscout-verified |
+| Mainnet WETH | Unverified via official contracts page | Bitquery cites `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` — confirm before hardcoding |
+| Classic Flashbots bundles | Not found on RH Chain | FCFS latency race; emerging private tooling unverified |
+
+**MVP stack preference (verified-only):** Alchemy/QuickNode RPC + sequencer feed awareness → Bitquery/Goldsky/Dune for discovery → Blockscout verify → Uniswap API/Universal Router for quotes → add Pons/Pools.trade only after address verification.
+
