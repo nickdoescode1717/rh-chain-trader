@@ -80,10 +80,10 @@ export function createTelegramBot(
     },
 
     async sendMessage(chatId, text, replyMarkup) {
+      // Plain text — no parse_mode (Markdown breaks on 0x CAs / underscores).
       return bot.apiCall("sendMessage", {
         chat_id: chatId,
         text,
-        parse_mode: "Markdown",
         reply_markup: replyMarkup,
       });
     },
