@@ -1,5 +1,6 @@
 /**
  * Format paper proposal + LARGE-move alert Telegram messages + inline keyboards.
+ * Plain text only (no parse_mode) — avoids Markdown entity errors on CAs / ids.
  * Paper only — no live sells.
  */
 
@@ -15,20 +16,20 @@ export type FormattedMessage = {
 };
 
 function shortCa(ca: string | undefined | null): string {
-  if (!ca) return "—";
+  if (!ca) return "-";
   if (ca.length <= 12) return ca;
-  return `${ca.slice(0, 6)}…${ca.slice(-4)}`;
+  return `${ca.slice(0, 6)}...${ca.slice(-4)}`;
 }
 
 function sizeLine(p: Proposal): string {
   if (p.sizeEth != null && p.sizeEth !== "") return `${p.sizeEth} ETH`;
   if (p.sizeUsd != null && p.sizeUsd !== "") return `$${p.sizeUsd}`;
   if (typeof p.size === "string" && p.size) return p.size;
-  return "—";
+  return "-";
 }
 
 function scoreLine(scores: Record<string, unknown> | null | undefined): string {
-  if (!scores) return "—";
+  if (!scores) return "-";
   const o = scores.opportunity ?? "?";
   const r = scores.risk ?? "?";
   const e = scores.evidenceConfidence ?? scores.evidence ?? "?";
@@ -40,18 +41,18 @@ function scoreLine(scores: Record<string, unknown> | null | undefined): string {
 export function formatProposal(p: Proposal): FormattedMessage {
   const ca = p.tokenCA ?? p.tokenAddress ?? "";
   const lines = [
-    "📄 *PAPER purchase proposal*",
-    `ID: \`${p.id}\``,
-    `CA: \`${shortCa(ca)}\` (chain ${p.chainId ?? 4663})`,
+    "PAPER purchase proposal",
+    `ID: ${p.id}`,
+    `CA: ${shortCa(ca)} (chain ${p.chainId ?? 4663})`,
     `Size: ${sizeLine(p)}`,
-    `Slippage: ${p.slippageBps ?? "—"} bps`,
-    `Lead: ${p.leadSource ?? "—"}`,
+    `Slippage: ${p.slippageBps ?? "-"} bps`,
+    `Lead: ${p.leadSource ?? "-"}`,
     `Scores: ${scoreLine(p.scores ?? undefined)}`,
     `Status: ${p.status ?? "pending_nick"}`,
     p.expiresAt ? `Expires: ${p.expiresAt}` : null,
     p.rationale ? `Rationale: ${String(p.rationale).slice(0, 280)}` : null,
     "",
-    "_Paper only. Approve → signer\\_handoff\\_stub. No keys. No live tx._",
+    "Paper only. Approve -> signer_handoff_stub. No keys. No live tx.",
   ].filter((x) => x != null) as string[];
 
   return {
@@ -59,8 +60,8 @@ export function formatProposal(p: Proposal): FormattedMessage {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "✅ Approve (paper)", callback_data: `approve:${p.id}` },
-          { text: "❌ Reject", callback_data: `reject:${p.id}` },
+          { text: "Approve (paper)", callback_data: `approve:${p.id}` },
+          { text: "Reject", callback_data: `reject:${p.id}` },
         ],
       ],
     },
@@ -88,15 +89,15 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
     pos.currentPrice == null ? "oracle pending" : String(pos.currentPrice);
   const pnl =
     pos.pnlPct == null && pos.pnlAbs == null
-      ? "—"
-      : `pct=${pos.pnlPct ?? "—"} abs=${pos.pnlAbs ?? "—"}`;
+      ? "-"
+      : `pct=${pos.pnlPct ?? "-"} abs=${pos.pnlAbs ?? "-"}`;
 
   const lines = [
-    "🚨 *PAPER LARGE-move alert* (AFK)",
-    `Position: \`${pos.id}\``,
-    `CA: \`${shortCa(ca)}\` (chain ${pos.chainId ?? 4663})`,
-    `Size: ${pos.size ?? "—"}`,
-    `Entry: ${pos.entryPrice ?? "—"} → Mark: ${mark}`,
+    "PAPER LARGE-move alert (AFK)",
+    `Position: ${pos.id}`,
+    `CA: ${shortCa(ca)} (chain ${pos.chainId ?? 4663})`,
+    `Size: ${pos.size ?? "-"}`,
+    `Entry: ${pos.entryPrice ?? "-"} -> Mark: ${mark}`,
     `PnL: ${pnl}`,
     `Trigger: ${kind} ${value} (${dir})`,
     researchSnapshot?.symbol
@@ -106,14 +107,14 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
       ? `Note: ${String(researchSnapshot.oneLiner).slice(0, 200)}`
       : null,
     "",
-    "_Paper only. Sell → propose only. No live sells. No keys._",
+    "Paper only. Sell -> propose only. No live sells. No keys.",
   ].filter((x) => x != null) as string[];
 
   return {
     text: lines.join("\n"),
     reply_markup: {
       inline_keyboard: [
-        [{ text: "💸 Sell (paper full)", callback_data: `sell:${pos.id}` }],
+        [{ text: "Sell (paper full)", callback_data: `sell:${pos.id}` }],
       ],
     },
   };
