@@ -1,0 +1,187 @@
+, funding, reconciliation, tax lots, monitoring fan-out. **MVP recommendation: 1 paper wallet + 1 live hot wallet.** Scale wallets only with operational runbooks.
+
+**“Up to 5% of supply”:** Treat as a **hard concentration risk**, never a default. Cap by: `% of pool depth you can exit into with ≤X% slippage`, `% of portfolio`, max notional, and time-to-exit under stress. Most early meme books should target **far below** 5%.
+
+---
+
+## 4. Phased roadmap
+
+### Phase 0 — Foundations (1–2 weeks)
+- Repo, env, secrets manager, Postgres schema, CI
+- Alchemy RPC + archive; Blockscout client
+- Registry tables for protocols/launchpads (manual seed: Pons, Uniswap, Pools.trade TBD addresses)
+- Evidence/citation model
+- Kill switch stub + audit log
+
+**Exit:** Can pull latest blocks, decode ERC-20 + Uniswap pool-created events, store with timestamps.
+
+### Phase 1 — Research dashboard (MVP product)
+- Ingest new pools/tokens from verified factories
+- Contract risk static checks (owner, mint, pause, blacklist, tax heuristics, proxy)
+- Deployer provenance (funding tx, prior deploys) with confidence labels
+- Manual watchlist of ≤50 trader wallets
+- Report UI: Opportunity / Risk / Confidence + sources
+- **No execution**
+
+**Exit:** You use dashboard daily; false-positive rate measured.
+
+### Phase 2 — Live alerts
+- Push alerts (Telegram/email) on: new launch in filters, watched-wallet buy in filters, critical risk flags
+- Hourly broad research jobs + **live** listeners for deployments, liquidity adds, launches, watched txs
+- Deduping + alert fatigue controls
+
+**Exit:** Alert precision tracked; on-call tolerable.
+
+### Phase 3 — Paper trading
+- Simulated fills using quotes + latency model + fee/tax assumptions
+- Approval workflow rehearsed (propose → approve → revalidate → “virtual” fill)
+- Sell-rule engine in dry-run
+- Score calibration vs subsequent 1h/24h/7d outcomes (**no** claim of alpha yet)
+
+**Exit:** Written post-mortem on 50+ paper trades; known failure modes.
+
+### Phase 4 — Approved purchases + automated sells
+- Real signer + executor with simulation gate
+- Explicit human approval with expiry and material-change invalidation
+- Pre-approved TP / SL / trailing / time / emergency exits
+- Daily loss limits, exposure caps, stale-data checks, duplicate-order prevention
+
+**Exit:** Limited live capital; kill switch tested; audit trail complete.
+
+### Phase 5 — (Optional) Autonomy experiments
+- Only after Phase 4 metrics; still policy-bounded; never keys in LLM
+
+---
+
+## 5. Database schema (proposed)
+
+```sql
+-- Core entities (simplified)
+
+CREATE TABLE protocols (
+  id UUID PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL, -- launchpad|dex|lending|perps|bridge|other
+  chain_id INT NOT NULL DEFAULT 4663,
+  website_url TEXT,
+  docs_url TEXT,
+  github_url TEXT,
+  x_handle TEXT,
+  status TEXT NOT NULL, -- active|paused|defunct|unknown
+  first_seen_at TIMESTAMPTZ NOT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}',
+  UNIQUE (chain_id, name)
+);
+
+CREATE TABLE contracts (
+  id UUID PRIMARY KEY,
+  chain_id INT NOT NULL DEFAULT 4663,
+  address BYTEA NOT NULL,
+  kind TEXT NOT NULL, -- token|factory|pair|router|deployer_eoa|proxy|other
+  protocol_id UUID REFERENCES protocols(id),
+  verified_source BOOLEAN,
+  is_proxy BOOLEAN,
+  implementation_address BYTEA,
+  first_seen_at TIMESTAMPTZ NOT NULL,
+  provenance_confidence TEXT NOT NULL, -- verified|corroborated|tentative|unknown
+  UNIQUE (chain_id, address)
+);
+
+CREATE TABLE tokens (
+  id UUID PRIMARY KEY,
+  contract_id UUID NOT NULL REFERENCES contracts(id),
+  symbol TEXT,
+  name TEXT,
+  decimals INT,
+  total_supply NUMERIC,
+  launchpad_id UUID REFERENCES protocols(id),
+  token_class TEXT, -- meme|utility|rwa|stable|unknown
+  created_at TIMESTAMPTZ,
+  brokerage_listed BOOLEAN NOT NULL DEFAULT FALSE,
+  on_chain_tradable BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+CREATE TABLE evidence (
+  id UUID PRIMARY KEY,
+  subject_type TEXT NOT NULL, -- token|contract|protocol|wallet|report
+  subject_id UUID NOT NULL,
+  source_type TEXT NOT NULL, -- rpc|explorer|website|github|x|docs|manual
+  source_url TEXT,
+  observed_at TIMESTAMPTZ NOT NULL,
+  collected_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  claim TEXT NOT NULL,
+  raw_ref JSONB, -- tx hash, block, snapshot id, etc.
+  trust TEXT NOT NULL -- primary_onchain|official_docs|corroborated|unverified_social
+);
+
+CREATE TABLE wallets (
+  id UUID PRIMARY KEY,
+  chain_id INT NOT NULL DEFAULT 4663,
+  address BYTEA NOT NULL,
+  label TEXT,
+  watchlist BOOLEAN NOT NULL DEFAULT FALSE,
+  trader_score JSONB, -- performance metrics + caveats
+  UNIQUE (chain_id, address)
+);
+
+CREATE TABLE wallet_events (
+  id UUID PRIMARY KEY,
+  wallet_id UUID NOT NULL REFERENCES wallets(id),
+  tx_hash BYTEA NOT NULL,
+  block_number BIGINT NOT NULL,
+  event_type TEXT NOT NULL, -- buy|sell|transfer_in|transfer_out|add_liq|remove_liq
+  token_id UUID REFERENCES tokens(id),
+  amount NUMERIC,
+  estimated_value_usd NUMERIC,
+  estimated_mcap_usd NUMERIC,
+  observed_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE scores (
+  id UUID PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id),
+  framework TEXT NOT NULL, -- meme|utility
+  opportunity NUMERIC NOT NULL, -- 0..100
+  risk NUMERIC NOT NULL,
+  evidence_confidence NUMERIC NOT NULL,
+  rejected BOOLEAN NOT NULL DEFAULT FALSE,
+  rejection_reasons TEXT[],
+  weights JSONB NOT NULL,
+  model_version TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE reports (
+  id UUID PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id),
+  score_id UUID REFERENCES scores(id),
+  summary TEXT NOT NULL,
+  body_md TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE purchase_proposals (
+  id UUID PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id),
+  report_id UUID REFERENCES reports(id),
+  contract_address BYTEA NOT NULL,
+  chain_id INT NOT NULL DEFAULT 4663,
+  size_base NUMERIC NOT NULL, -- spend amount in quote asset
+  quote_asset TEXT NOT NULL, -- ETH|USDG|...
+  max_slippage_bps INT NOT NULL,
+  deadline_at TIMESTAMPTZ NOT NULL,
+  exit_rules JSONB NOT NULL,
+  status TEXT NOT NULL, -- pending|approved|rejected|expired|executed|invalidated
+  approved_at TIMESTAMPTZ,
+  approval_expires_at TIMESTAMPTZ,
+  material_snapshot JSONB NOT NULL -- price, liq, tax flags at proposal time
+);
+
+CREATE TABLE orders (
+  id UUID PRIMARY KEY,
+  proposal_id UUID REFERENCES purchase_proposals(id),
+  side TEXT NOT NULL, -- buy|sell
+  status TEXT NOT NULL,
+  tx_hash BYTEA,
+  simulated_ok BOOLEAN,
+  error TE
