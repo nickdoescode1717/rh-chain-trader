@@ -8,7 +8,6 @@ import {
   tokens,
   evidence,
   scores,
-  wallets,
   reports,
   auditLog,
 } from "./schema.js";
@@ -176,12 +175,7 @@ async function main() {
     },
   ]);
 
-  await db.insert(wallets).values({
-    address: "0xFICTIONALWALLET000000000000000000000001",
-    label: "FICTIONAL research watcher",
-    tags: ["seed_fictional", "demo"],
-    notes: "Not a real wallet.",
-  });
+  // No fictional wallets — invalid hex breaks wallet-watcher eth_getLogs.
 
   await db.insert(reports).values({
     tokenId: tokMeme.id,
