@@ -1,7 +1,7 @@
 # Desk Playbook — rh-chain-trader (Robinhood Chain 4663)
 
 Living reference. Append new hints; do not leave learnings only in chat.
-Last updated: 2026-09-09 (~04:08 UTC) / 2026-09-09 00:08 ET
+Last updated: 2026-09-09 (~13:05 UTC) / 2026-09-09 09:05 ET
 
 
 ## Nick CORRECTION (2026-09-09 ~03:56 UTC) — opportunity type
@@ -10,10 +10,10 @@ Last updated: 2026-09-09 (~04:08 UTC) / 2026-09-09 00:08 ET
 - CT new-platform discovery = **primary**
 - Pad factories / `:13001` ingest = **corroboration tools** after a platform is identified
 - Pattern library siblings: **Crumbs**, **early Pons**, **STONK**
-- Manual CT discovery until X funded — no scrape / no X API
+- Manual CT via **unpaid browser x.com** (see Unpaid CT workflow). No scrape bots / no X API keys required. **Never** treat “blocked until X funded” as an excuse.
 
 ## Operating framework (Nick durable)
-1. CT/docs = discovery of platforms to like — untrusted leads; no scrape; no X API until funded.
+1. CT/docs = discovery of platforms to like — untrusted leads; **unpaid browser CT** (no scrape bots; no paid X API required).
 2. Lead sources are **co-equal: (1) CT and (2) watched-wallet buys** — not CT-only. DD the PLATFORM/token from those leads (docs/staging/dev/repos/on-chain) before any scoped watch. Pad factories = corroboration only. Wallet list from Nick later.
 3. Listen only on Nick-approved platforms — never escalate every TokenCreated; orphan/global launches low priority/ignore until registry.
 4. On events: hard-reject fictional/seed, zero liq, honeypot flags, junk evidence, spam; score survivors only with opportunity / risk / evidence-confidence + sources.
@@ -28,7 +28,7 @@ Last updated: 2026-09-09 (~04:08 UTC) / 2026-09-09 00:08 ET
 - CT buzz about platform/app/protocol (not just ticker)
 - Official domain / docs / staging
 - Team/handles unverified until corroborated
-- Capture sources + timestamps; no X scrape/API until funded
+- Capture sources + timestamps; unpaid browser x.com OK; no scrape bots / no API keys
 
 ### B. Platform DD before listen
 - On-chain 4663 vs brokerage
@@ -318,3 +318,80 @@ Every paper proposal / TG analysis **must** include:
 - **liq** when known (USD + pool/venue + observedAt)
 
 Put in scores and/or top-level `market` object. Missing mcap/liq = incomplete proposal.
+
+## Proposal freshness gate (Nick HARD 2026-09-09)
+**Nick HARD FEEDBACK:** Approving a paper drill ≠ liking the name. `$STONKBROKER` @ ~$20M was **too late** — used only to test position tracking.
+
+### Future proposals (live or paper)
+- Prefer **newer launches** — early/fresh, ideally **just released / still low mcap** (Crumbs-class **timing**)
+- **Do not** propose mid-cycle household RH names (PONS/CASHCAT/AI/STONKBROKER-at-tens-of-M) as “opportunities”
+- Hard rule of thumb: if it’s already a known multi‑$M runner everyone knows, it’s **SKIP** for new entries unless Nick reclassifies
+- Still mandatory: **full CA + mcap + liq** (+ sources/observedAt)
+- Still: CT/wallet lead first; pads corroborate only; paper until he flips
+
+### Exception
+Workflow-only drills only when Nick **explicitly** asks — and still prefer a fresh CA over recycling late names.
+
+## Unpaid CT workflow (Nick HARD 2026-09-09) — no paid X API required
+**Rule:** Find early RH **4663** leads **without** paid X API — **still look through X** in the browser. Soft-wall / “wait until funded” is **not** an excuse. No scraping bots that need API keys. No wallet asks. No X-fund asks. Paper only. Freshness gate stays (newer / low-mcap only).
+
+### Sources of truth
+- Account list: `docs/CT_ALPHA_WATCHLIST.md` (local: desk-docs/CT_ALPHA_WATCHLIST.md)
+- This playbook for process + freshness + proposal fields
+
+### Daily / on-hunt steps (browser x.com)
+1. **Follow / check CT Alpha Watchlist** — open each `watch=yes` (then `maybe`) profile on `https://x.com/<handle>`; skim latest posts / replies for new RH Chain platforms, CAs, product launches, “live” / “token” / “Robinhood Chain” mentions. Capture URL + timestamp + quote.
+2. **Public search** — use x.com search (and Advanced-search style URL params when useful), e.g.:
+   - `"Robinhood Chain" OR "RH Chain" OR "chain 4663" (launch OR launched OR token OR CA OR platform)`
+   - `"live on Robinhood" (token OR $)` 
+   - New-platform class: `(Crumbs OR Pons OR STONK OR pad OR launchpad) Robinhood`
+   - Ticker/CA hunts once a lead appears: `$TICKER` + Robinhood / 4663
+3. **Lists / Communities / reply-chains** — from known alphas on the watchlist: open quote/reply graphs under early calls; check Lists or Communities they share if visible without login walls. Prefer first-party issuer threads over late FOMO quote-spam.
+4. **Cross-check before any proposal** — site/docs/GitHub/staging + on-chain (Blockscout 4663 / DexScreener): **full CA + mcap + liq** (+ sources + observedAt). CT alone = untrusted. Pads/factories corroborate only after a lead.
+5. **Score + gate** — separate meme vs utility; opportunity / risk / evidence-confidence; overall/10 formula; freshness gate (SKIP mid-cycle household names). File phone-ready paper proposal only on real early clears.
+
+### Hard rejects (still)
+- Fictional/seed API rows, zero liq, honeypot flags, junk evidence, spam
+- Pad firehose as primary feed
+- Mid-cycle multi-$M household runners as “new opportunities”
+- Invented CLEARs when soft-wall blocks a single timeline — try another handle / search / public mirror instead of stopping
+
+### Soft-wall tactics (still unpaid)
+- Public profile + pinned + “Posts” tab; nitter/public mirrors only if they add evidence (label source)
+- Indexed press / Lookonchain / DexScreener socials as corroboration, not as the lead substitute forever
+- If login wall blocks one timeline: rotate to next watchlist handle or search query — do not halt the hunt
+
+### Output
+- Append durable CT Alpha rows when evidence warrants; ask Coder to commit
+- Escalate clears → paper proposal (CA+mcap+liq) → Nick OK
+- Report hunt status to CoS when meaningful; silence on firehose noise
+
+### Append log
+- 2026-09-09 ~09:05 ET: Unpaid CT browser SOP locked (Nick via CoS PRIORITY). Removes “blocked until X funded” excuse.
+
+## Append — Unpaid CT browser hunt #1 (2026-09-09 ~09:09 ET)
+**Friction:** x.com Live search URLs and post-click “See full profile” hit login/onboarding wall on box browser. Public profile snippets still usable — rotate handles; do not halt hunt.
+
+### Leads graded
+| Lead | Class | Stance | Evidence |
+| --- | --- | --- | --- |
+| $CRUMBS `0x80baa4b3bfac6f4978700df824b1b3d98e889136` | Platform token (known) | **Pattern only** (Nick) — not auto CLEAR | DexScreener ~09:09 ET: mcap **~$457K**, liq **~$63.7K**, 24h vol huge; @crumbsfamily live tweet |
+| Smart LP (Clutch / StonkBrokers) | **New product / infra** on RH 4663 | **Platform radar WATCH** — no new token CA | Live ~Sep 8; CT @ClutchMarkets / @OxSimpleFarmer; site locker `stonkbrokers.cash/locker/smart-lp`; press ~$539K→$620K deposits in hours; single-sided stock-token LP |
+| $NET `0xCA9c78Dd337A67F6e0077F65F5E9218719d30eDf` | Utility / reserve fund | **SKIP** new-entry (freshness) | Genesis ~Jul 16; docs.netnet.capital; DexScreener mcap **~$3.4–3.5M**, liq hundreds of K; @cryptogle praise = distribution mechanic amp, not early call |
+| $OBS / $AOBS | Pattern (Nick) | No proposal | Already locked playbook-only |
+| PONS / LONG / STONKBROKER / AI / CASHCAT / $MEME | Mid-cycle | SKIP | Household / multi-$M |
+
+### Hunt takeaway
+Unpaid CT still works via profile skim + DexScreener cross-check despite search soft-wall. Next: watch Clutch Special Projects for **new** token CAs (not STONKBROKER itself); keep scanning watchlist for pre-viral names.
+
+## Append — PAIR platform note (2026-09-09 ~09:11 ET)
+**pair.fund** — multipool RWA launchpad on RH 4663 (stock-token baskets). Public launch press ~Aug 31; multipool V5 ~Aug 26; protocol token `$PAIR` CA `0x6b1d42927b1a84ec28fa88d4fc6fa7af404966be` live ~Aug 29.
+**Tape now:** DexScreener ~$8.3–8.4M mcap / liq hundreds of K — **SKIP** as new-entry (post Sep 6 ~$50M peak prints).
+**Desk stance:** **Platform radar** (Crumbs/early-Pons/STONK sibling class) — CT/docs first for NEW launches *on* PAIR; do not chase $PAIR itself; pad corroboration only after a lead. Site `https://pair.fund` / docs `https://pair.fund/docs`.
+
+## Append — $CRUMBS paper re-entry proposal (2026-09-09 ~09:15 ET)
+Nick via CoS PRIORITY overrode pattern-only: evaluate buy at compressed tape.
+- Proposal `76961227-a665-4d67-b57a-cdcef1b3c4fe` · status `pending_nick` · PAPER re-entry (not launch snipe)
+- CA `0x80baa4b3bfac6f4978700df824b1b3d98e889136`
+- DexScreener @ 2026-09-09T13:13:25Z: mcapUsd **412385** · liqUsd **60494.67** · scores.market set
+- opp76 / risk48 / ev87 → overall **3/10** · gate CLEAR · size eth:0.03 · slip 150bps
