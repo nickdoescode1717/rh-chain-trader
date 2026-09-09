@@ -1,7 +1,8 @@
 /**
  * Paper purchase proposals -- Nick approve/reject only.
  * Never signs / never submits txs. ENABLE_TRADING stays false.
- * Signer handoff is a stub. See docs/PURCHASE_PROPOSALS.md
+ * Approve → signer_handoff_stub payload (single-key multi-address; no key material).
+ * See docs/PURCHASE_PROPOSALS.md + docs/ISOLATED_SIGNER.md
  */
 import { Hono } from "hono";
 import { desc, eq } from "drizzle-orm";
@@ -11,6 +12,10 @@ import {
   memPurchaseProposals,
   type MemPurchaseProposal,
 } from "../purchase-proposals-mem.js";
+import {
+  buildSignerHandoffStub,
+  rejectKeyFields,
+} from "../signer-handoff.js";
 import {
   encodeSize,
   isExpired,
@@ -40,6 +45,13 @@ purchaseProposalRoutes.get("/", async (c) => {
 purchaseProposalRoutes.post("/", async (c) => {
   const body = (await c.req.json().catch(() => null)) as CreateBody | null;
   if (!body) return c.json({ error: "invalid_json" }, 400);
+  const keyField = rejectKeyFields(body as unknown as Record<string, unknown>);
+  if (keyField) {
+    return c.json(
+      { error: "keys_not_accepted", field: keyField, hint: "Addresses only; key stays in isolated signer." },
+      400
+    );
+  }
   if ((body.chainId ?? 4663) !== 4663) {
     return c.json({ error: "chain_id_must_be_4663" }, 400);
   }
@@ -145,10 +157,55 @@ purchaseProposalRoutes.post("/", async (c) => {
   );
 });
 
+function approveResponse(
+  row: {
+    id: string;
+    tokenAddress: string | null;
+    size: string | null;
+    slippageBps: number | null;
+    exits: unknown;
+  },
+  source: "memory" | "postgres",
+  preferredBuyAddress?: string | null
+) {
+  const signerHandoff = buildSignerHandoffStub({
+    proposalId: row.id,
+    tokenCA: row.tokenAddress,
+    size: row.size,
+    slippageBps: row.slippageBps,
+    exits: row.exits,
+    preferredBuyAddress,
+  });
+  return {
+    data: toPhonePayload(row as Parameters<typeof toPhonePayload>[0]),
+    next: "signer_handoff_stub" as const,
+    revalidateRequired: true,
+    signed: false as const,
+    txSubmitted: false as const,
+    source,
+    paperOnly: true as const,
+    signerHandoff,
+    note: "Paper path only. No keys. No tx. Isolated signer not called.",
+  };
+}
+
 purchaseProposalRoutes.post("/:id/approve", async (c) => {
   const id = c.req.param("id");
-  const actorBody = (await c.req.json().catch(() => ({}))) as { actor?: string };
+  const actorBody = (await c.req.json().catch(() => ({}))) as {
+    actor?: string;
+    buyAddress?: string;
+    preferredBuyAddress?: string;
+  };
+  const keyField = rejectKeyFields(actorBody as Record<string, unknown>);
+  if (keyField) {
+    return c.json(
+      { error: "keys_not_accepted", field: keyField, hint: "Approve never accepts keys." },
+      400
+    );
+  }
   const actor = actorBody.actor ?? "nick_grok";
+  const preferred =
+    actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null;
   const db = getDb();
 
   if (!db) {
@@ -164,16 +221,7 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
     row.status = "approved";
     row.approvedAt = new Date().toISOString();
     row.note = "PAPER_APPROVED -- revalidate then signer_handoff_stub; no sign";
-    return c.json({
-      data: toPhonePayload(row),
-      next: "signer_handoff_stub",
-      revalidateRequired: true,
-      signed: false,
-      txSubmitted: false,
-      source: "memory",
-      paperOnly: true,
-      note: "Paper path only. No keys. No tx. Live signer is a separate service.",
-    });
+    return c.json(approveResponse(row, "memory", preferred));
   }
 
   const [existing] = await db.select().from(purchaseProposals).where(eq(purchaseProposals.id, id));
@@ -200,6 +248,15 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
     .where(eq(purchaseProposals.id, id))
     .returning();
 
+  const handoff = buildSignerHandoffStub({
+    proposalId: row.id,
+    tokenCA: row.tokenAddress,
+    size: row.size,
+    slippageBps: row.slippageBps,
+    exits: row.exits,
+    preferredBuyAddress: preferred,
+  });
+
   await db.insert(auditLog).values({
     action: "purchase_proposal_approved",
     actor,
@@ -211,19 +268,13 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
       signed: false,
       txSubmitted: false,
       paperOnly: true,
+      buyAddress: handoff.buyAddress,
+      buyAddressSelection: handoff.buyAddressSelection,
+      keyModel: handoff.keyModel,
     },
   });
 
-  return c.json({
-    data: toPhonePayload(row),
-    next: "signer_handoff_stub",
-    revalidateRequired: true,
-    signed: false,
-    txSubmitted: false,
-    source: "postgres",
-    paperOnly: true,
-    note: "Paper path only. No keys. No tx. Live signer is a separate service.",
-  });
+  return c.json(approveResponse(row, "postgres", preferred));
 });
 
 purchaseProposalRoutes.post("/:id/reject", async (c) => {
