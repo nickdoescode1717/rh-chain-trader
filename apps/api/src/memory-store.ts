@@ -238,3 +238,33 @@ export const memEvidence: MemEvidence[] = [
     observedAt: now(),
   },
 ];
+
+export interface MemWallet {
+  id: string;
+  address: string;
+  label: string | null;
+  tags: string[];
+  notes: string | null;
+  createdAt: string;
+}
+
+/** Empty-ready watched wallets (memory fallback when DB down). */
+export const memWallets: MemWallet[] = [];
+
+/** Desk-shaped wallet events (memory fallback). */
+export interface MemWalletEvent {
+  leadSource: "watched_wallet";
+  wallet: string;
+  walletLabel: string | null;
+  token: string | null;
+  tokenSymbol: string | null;
+  amount: string | null;
+  amountUsd: null;
+  txHash: string | null;
+  block: number | null;
+  entryEstimate: null;
+  otherWatchedOnToken: string[];
+  observedAt: string;
+}
+
+export const memWalletEvents: MemWalletEvent[] = [];
