@@ -24,6 +24,7 @@ Last updated: 2026-09-09 ~00:13 ET
 | `@ponsdotfamily` | Official Pons CT | Cited Jul 19 launch metrics tweet in coverage | High | 2026-09-09 |
 | `@cryptogle` (Ogle, WLFI) | Early PONS: buy ~Jul 14 ~$470K mcap; vocal #2 RH holding Jul 18 + metrics | techflowpost/woofun/odaily/finbold/lookonchain | High | 2026-09-09 |
 | `@amemecoinrh` | Official $MEME (A Meme Coin) CT — **issuer** on RH 4663 (not Solana Memecoin) | techflowpost + OpenSea/CMC cite CA `0x385f4f8a…1e18`; narrative “theater was a front” | High (issuer) | 2026-09-09 |
+| `@obscuracex` / `@ObscuraCEX` | Official Obscura CT — **platform radar** (privacy / swap-to-earn on RH 4663) | obscuracex.com + CryptoCompass cites X + CA `0xfe242d1d…Ad4E` | High (issuer) | 2026-09-09 |
 
 ## Watch = maybe
 | @handle | Why | Evidence | Confidence | Added |
@@ -42,6 +43,7 @@ Last updated: 2026-09-09 ~00:13 ET
 | CASHCAT early CT callers | Press covers wallets/PnL, not durable CT handles; soft wall on X timelines |
 | Third-party early $CRUMBS callers | Need Nick paste from announcement quote/reply graph or funded X |
 | $MEME (RH 4663) third-party sub-$2M CT callers | Press = wallets/PnL + issuer; KuCoin tape often cites ~$3M→$150M window (may already be >$2M). Soft wall on X timelines |
+| Obscura ($OBS) third-party sub-$2M CT callers | Soft wall; Nick-linked status/2096349715642126787 is ~Sep 5 (post Aug 21 pair) — not proven early call |
 
 ## Next mine
 - TENDIES, HMM, YOLO, PIPEDOG, HOODRAT; INDEX/DELTA/HOOKR
@@ -63,3 +65,10 @@ No new solid sub-$2M early CT @handles on indexed public web. Curator “Robinho
 **Tape:** Launch ~Sep 3–4 2026; Uniswap v4 pool vs **tokenized AMC** (stock-paired meme). Event catalyst: Aron vs Tenev feud → “A Meme Coin” pun. Peak prints ~$100–151M then sharp retrace (press).
 **Adds:** `@amemecoinrh` → yes (issuer). `@frankdegods` / `@ConcernRH` → maybe (wallet-alpha / narrative amp — fail strict “CT called sub-$2M” bar). True third-party early callers: **UNKNOWN**.
 **Meme scoring pattern (vs platform-class):** Pure **news/event** meme — attention from CEO feud, not product CT. Axes: attention↑↑, narrative quality (pun+stock-pair) high short-term, liq/sellability poor vs headline mcap, distribution sniper-clustered, no utility. Unlike Crumbs/Pons/STONK: **no** pre-token platform traction; pad/factory is irrelevant lead source. Escalate only if CT/wallet lead hits **before** mainstream feed — post-viral is late.
+
+## Append — Obscura / @obscuracex mine (2026-09-09 ~08:45 ET)
+**Chain:** Robinhood Chain **4663** — $OBS CA `0xfe242d1Da8FD04f6A1F80B6D3d807B02e062Ad4E` (pair cited `0xfd7c2011…c956`, created ~2026-08-21 20:18 UTC). **Not** Solana Obscura / mixer / Horizen name-collisions.
+**Pre-token:** obscuracex.com domain ~2026-05-26/27 (WebsiteLaunches) — months before token. Product: private liquidity / swap-to-earn paying tokenized stocks.
+**Nick tweet:** status/2096349715642126787 ≈ **2026-09-05 21:28 UTC** — body recovered: **$AOBS Agent OBS LIVE** Phase 2, CA `0x47366e0f257ac009e82bd46fb74e2fb50826ce98` (not early $OBS call).
+**Adds:** `@obscuracex`/`@ObscuraCEX` → yes (issuer). Third-party early callers → **UNKNOWN**.
+**Live vs pattern:** Pattern library **yes** (Crumbs-class early platform). Live paper = **WATCH candidate only** if Nick wants platform DD — not CLEAR; no auto proposal. Crumbs-class = pattern not chase.

@@ -281,3 +281,32 @@ Scores `opp` / `risk` / `evidenceConfidence` on **0–100** (higher risk = worse
 Caps: risk ≥ 80 → max 3; evidenceConfidence < 40 → max 4.
 Bands: 8–10 🟢 · 5–7 🟡 · 1–4 🔴 · 0/null ⛔
 Header: `{emoji} {overall10}/10 · $SYMBOL · 4663`
+
+## Pattern case — Obscura (privacy / swap-to-earn on RH 4663)
+**Nick pointer 2026-09-09:** https://x.com/obscuracex/status/2096349715642126787 (snowflake ≈ 2026-09-05 21:28 UTC — **post** token launch; use as pattern pointer, not early-call proof).
+
+### Provenance timeline
+| When (UTC) | Signal | Notes |
+| --- | --- | --- |
+| ~2026-05-26/27 | Domain `obscuracex.com` registered / site launch detected | **Pre-token** platform signal (months early) — WebsiteLaunches |
+| 2026-08-21 ~20:18 | $OBS pair created on RH Uniswap (cited DexScreener/Coinatio) | CA `0xfe242d1Da8FD04f6A1F80B6D3d807B02e062Ad4E` · pair `0xfd7c2011…c956` |
+| 2026-08-21 | Press: CryptoCompass “privacy layer entered Robinhood ecosystem” | Cites site + `@ObscuraCEX` + CA |
+| 2026-09-05 ~21:28 (2:28 PM display) | @ObscuraCEX: **Agent OBS $AOBS LIVE** — Phase 2 | Official AOBS CA `0x47366e0f257ac009e82bd46fb74e2fb50826ce98` (RH 4663). Two flywheels: $OBS swap-to-earn + $AOBS on-chain agent. **Not** an early $OBS sub-$2M call — product expansion mid-cycle |
+
+### Classification
+- **Class:** new-platform / infra (privacy liquidity + swap-to-earn RWA cashback) — closer to **utility/hybrid** scoring than pure meme
+- **Chain:** RH **4663** only for this CA. Name collisions exist (Solana dark-pool, mixers, Horizen “Obscura”) — always bind **CA + domain**
+- **Lead path:** CT/platform buzz → site/docs DD → then token corroboration. **Not** pad firehose. Not in Desk `:13001` Pons token dump as of 2026-09-09 (different launch path)
+
+### Detection checklist deltas vs Crumbs / early-Pons / STONK
+| Check | Crumbs | early-Pons / STONK | **Obscura** |
+| --- | --- | --- | --- |
+| Pre-token surface | crumbs.robinhood.com easter egg + crumbs.family near token | Pad/product CT before/at platform token | **Domain months earlier (May → Aug token)** |
+| Product thesis | Stock-token rewards meme/social | Launchpad / stock-paired pad | **Privacy execution + swap-to-earn RWA** |
+| Score framework | Meme (+ platform hybrid) | Platform / pad radar | Prefer **utility** axes (product/usage/token necessity) + separate meme if narrative |
+| Factory corroboration | Often via Pons launchAndBuy | Pad is the product | May **not** appear on Pons firehose — don’t wait for pad event |
+| Name collision | Hansel CRUMBS vs canonical | Pad ticker spam | High — many “Obscura” projects; CA+site mandatory |
+| Live chase? | Pattern only (completed) | Platform radar | **Pattern yes**; live = WATCH after DD, not auto CLEAR |
+
+### Live paper stance (2026-09-09)
+Public mcap prints still appear **sub-$2M** in some venues — possible **WATCH** for paper practice after fuller platform DD. **Not** a CLEAR today (incomplete evidenceConfidence on product readiness; Nick tweet ≠ early call). No purchase proposal filed unless Nick asks. No wallets/keys.
