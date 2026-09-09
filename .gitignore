@@ -9,3 +9,6 @@ coverage/
 .turbo/
 *.tsbuildinfo
 drizzle/meta/
+
+# Collector poll cursor (local state)
+workers/collector/data/launch-cursor.json
