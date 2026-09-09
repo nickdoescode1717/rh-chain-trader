@@ -24,6 +24,9 @@ export type PaperFillInput = {
   next?: string | null;
   signed?: boolean;
   txSubmitted?: boolean;
+  buyAddress?: string | null;
+  buyAddressSelection?: string | null;
+  keyModel?: string | null;
 };
 
 export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage {
@@ -33,6 +36,10 @@ export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage 
       : input.sizeUsd != null && input.sizeUsd !== ""
         ? `$${input.sizeUsd} (paper)`
         : input.size ?? "-";
+  const buy =
+    input.buyAddress && input.buyAddress.length
+      ? input.buyAddress
+      : "(none registered — POST /buy-wallets when ready)";
   const lines = [
     section("PAPER FILL", "🧾"),
     "Status: paper execution receipt (stub)",
@@ -42,11 +49,16 @@ export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage 
     `Price: ${str(input.price, "n/a (paper stub)")}`,
     `API status: ${str(input.status, "approved")}`,
     `Next: ${str(input.next, "signer_handoff_stub")}`,
+    `Buy wallet: ${buy}`,
+    input.buyAddressSelection
+      ? `Selection: ${input.buyAddressSelection}`
+      : null,
+    `Key model: ${str(input.keyModel, "single_controlling_key_multi_address")}`,
     `Signed: ${input.signed === true ? "true" : "false"}`,
     `Tx submitted: ${input.txSubmitted === true ? "true" : "false"}`,
     "",
     "PAPER ONLY — no keys, no live tx, ENABLE_TRADING=false.",
-  ];
+  ].filter((x) => x != null) as string[];
   return { text: truncate(lines) };
 }
 
@@ -105,6 +117,7 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
   const lines: string[] = [
     section("PAPER BALANCE", "💰"),
     "Nick buy wallets / paper purse — NOT watched alphas",
+    "Key model: single_controlling_key_multi_address (addresses only here)",
     "",
     section("PAPER PURSE", "💵"),
     `Cash: ${b.cashEth} ETH`,

@@ -15,19 +15,23 @@ export function isBalanceCommand(text: string | undefined): boolean {
 export function fillFromApprove(apiBody: unknown, proposalId: string) {
   const body = (apiBody ?? {}) as Record<string, unknown>;
   const data = (body.data ?? {}) as Record<string, unknown>;
+  const handoff = (body.signerHandoff ?? {}) as Record<string, unknown>;
   const s = (v: unknown) => (v == null ? null : String(v));
   return formatPaperFillSuccess({
     proposalId,
     status: s(data.status) ?? "approved",
-    size: s(data.size),
-    sizeEth: s(data.sizeEth),
-    sizeUsd: s(data.sizeUsd),
-    tokenCA: s(data.tokenCA),
+    size: s(data.size) ?? s(handoff.size),
+    sizeEth: s(data.sizeEth) ?? s(handoff.sizeEth),
+    sizeUsd: s(data.sizeUsd) ?? s(handoff.sizeUsd),
+    tokenCA: s(data.tokenCA) ?? s(handoff.tokenCA),
     symbol: s(data.tokenSymbol) ?? s(data.symbol),
     price: null,
     next: s(body.next) ?? "signer_handoff_stub",
     signed: body.signed === true,
     txSubmitted: body.txSubmitted === true,
+    buyAddress: s(handoff.buyAddress),
+    buyAddressSelection: s(handoff.buyAddressSelection),
+    keyModel: s(handoff.keyModel) ?? "single_controlling_key_multi_address",
   });
 }
 
