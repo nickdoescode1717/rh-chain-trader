@@ -12,6 +12,7 @@ export {
   getOpenPositions,
   memPaperPositions,
   paperCashEth,
+  getPaperCashEth,
   openPaperFromProposal,
   setPaperMark,
   toPositionPayload,
