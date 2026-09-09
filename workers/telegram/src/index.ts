@@ -2,12 +2,15 @@
  * Paper-only Telegram AFK worker.
  * Desk-order proposals, post-approve paper fill, /balance + /positions.
  * Never signs, never loads keys, never submits txs.
+ * Catch-up fill receipts after restart (survive TG recreate).
  */
 
-import { createApiClient, type Proposal } from "./api.js";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { createApiClient, type Proposal, type Position } from "./api.js";
 import { handleCallback } from "./callbacks.js";
 import {
   fillFromApprove,
+  fillFromPosition,
   handleBalanceCommand,
   handlePositionsCommand,
   isBalanceCommand,
@@ -37,6 +40,8 @@ const POLL_MS = Number(env("POLL_MS", "15000")) || 15000;
 const CHAT_ID = env("TELEGRAM_CHAT_ID");
 const TOKEN = env("TELEGRAM_BOT_TOKEN");
 const LARGE_MOVE_PCT = Number(env("LARGE_MOVE_PCT", "25")) || 25;
+const FILL_STATE_PATH =
+  env("TG_FILL_STATE_PATH", "/tmp/rh-tg-fill-sent.json")!;
 
 const dry = isDryRun();
 const api = createApiClient(API_BASE_URL);
@@ -45,6 +50,48 @@ const dryBot = dry ? createDryRunBot() : null;
 
 const notifiedProposals = new Set<string>();
 const alertedPositions = new Set<string>();
+const fillReceiptSent = new Set<string>();
+
+function loadFillState(): void {
+  try {
+    if (!existsSync(FILL_STATE_PATH)) return;
+    const raw = JSON.parse(readFileSync(FILL_STATE_PATH, "utf8")) as {
+      proposalIds?: string[];
+    };
+    for (const id of raw.proposalIds ?? []) {
+      if (typeof id === "string" && id) fillReceiptSent.add(id);
+    }
+    console.log(
+      `[telegram] loaded ${fillReceiptSent.size} fill-receipt ids from ${FILL_STATE_PATH}`
+    );
+  } catch (err) {
+    console.warn(
+      "[telegram] fill-state load failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
+function saveFillState(): void {
+  try {
+    writeFileSync(
+      FILL_STATE_PATH,
+      JSON.stringify({ proposalIds: [...fillReceiptSent] }),
+      "utf8"
+    );
+  } catch (err) {
+    console.warn(
+      "[telegram] fill-state save failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
+function markFillSent(proposalId: string): void {
+  if (!proposalId) return;
+  fillReceiptSent.add(proposalId);
+  saveFillState();
+}
 
 async function deliver(text: string, replyMarkup?: unknown): Promise<void> {
   if (!CHAT_ID) {
@@ -72,6 +119,41 @@ async function pollProposals(): Promise<void> {
       notifiedProposals.add(p.id);
     } catch (err) {
       console.warn("[telegram] deliver proposal failed:", err instanceof Error ? err.message : err);
+    }
+  }
+}
+
+/**
+ * After TG restart / Approve via Grok: send paper fill for open positions
+ * whose proposalId has no recorded receipt yet. Paper only.
+ */
+async function pollMissedFills(): Promise<void> {
+  let positions: Position[] | null;
+  try {
+    positions = await api.listPositions();
+  } catch (err) {
+    console.warn("[telegram] listPositions (fill catch-up) error:", err instanceof Error ? err.message : err);
+    return;
+  }
+  if (positions == null) return;
+  for (const pos of positions) {
+    if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
+    const proposalId =
+      typeof pos.proposalId === "string" ? pos.proposalId : null;
+    if (!proposalId) continue;
+    if (fillReceiptSent.has(proposalId)) continue;
+    try {
+      const fill = fillFromPosition(pos, proposalId);
+      await deliver(fill.text);
+      markFillSent(proposalId);
+      console.log(
+        `[telegram] catch-up paper fill receipt for proposal=${proposalId} position=${pos.id}`
+      );
+    } catch (err) {
+      console.warn(
+        "[telegram] catch-up fill failed:",
+        err instanceof Error ? err.message : err
+      );
     }
   }
 }
@@ -157,6 +239,7 @@ async function processTgUpdates(): Promise<void> {
       try {
         const fill = fillFromApprove(result.apiBody, result.proposalId);
         await deliver(fill.text);
+        markFillSent(result.proposalId);
         console.log(`[telegram] paper fill receipt sent for ${result.proposalId}`);
       } catch (err) {
         console.warn("[telegram] paper fill receipt failed:", err instanceof Error ? err.message : err);
@@ -173,8 +256,11 @@ async function processTgUpdates(): Promise<void> {
 
 async function tick(): Promise<void> {
   await pollProposals();
+  await pollMissedFills();
   await pollPositionsAlerts();
 }
+
+loadFillState();
 
 console.log(
   `[telegram] paper AFK worker starting dryRun=${dry} api=${API_BASE_URL} pollMs=${POLL_MS} chatId=${CHAT_ID ? "set" : "unset"}`
