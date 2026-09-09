@@ -6,6 +6,7 @@
 import { inArray } from "drizzle-orm";
 import { positions } from "@rh/db";
 import { getDb } from "./db.js";
+import { decimalText } from "./validation.js";
 
 export type MemPaperPosition = {
   id: string;
@@ -27,13 +28,17 @@ export type MemPaperPosition = {
 
 export const memPaperPositions: MemPaperPosition[] = [];
 
-export let paperCashEth =
-  Number(process.env.PAPER_CASH_ETH?.trim() || "1.0") || 1.0;
+function startingPaperCash(): number {
+  const value = decimalText(process.env.PAPER_CASH_ETH?.trim() || "1.0", true);
+  return value === null ? 1 : Number(value);
+}
+
+export let paperCashEth = startingPaperCash();
 
 export function parseEthSize(size: string | null | undefined): number | null {
   if (!size?.startsWith("eth:")) return null;
-  const n = Number(size.slice(4));
-  return Number.isFinite(n) ? n : null;
+  const value = decimalText(size.slice(4));
+  return value === null ? null : Number(value);
 }
 
 function parseFiniteNum(v: string | null | undefined): number | null {
@@ -48,8 +53,8 @@ function entryFromScores(scores: unknown): string | null {
   for (const key of ["entryEstimate", "entryPrice", "mark"] as const) {
     const v = s[key];
     if (v == null || v === "") continue;
-    const str = String(v);
-    if (str.length) return str;
+    const str = decimalText(v);
+    if (str !== null) return str;
   }
   return null;
 }
@@ -92,15 +97,17 @@ export function getOpenPositions(): MemPaperPosition[] {
 }
 
 /**
- * Book value stub for equity: eth: size notional when markSource is stub_entry;
- * 0 when no usable mark (oracle_pending).
+ * ETH position value at the supplied mark; retain cost basis when marks are
+ * unavailable. USD sizes are excluded because no ETH/USD conversion exists.
  */
-export function sumPositionsEthStub(): number {
+export function sumPositionsEth(): number {
   let sum = 0;
   for (const p of getOpenPositions()) {
-    if (p.markSource !== "stub_entry") continue;
     const eth = parseEthSize(p.size);
-    if (eth != null) sum += eth;
+    if (eth != null) {
+      const pnl = computeUnrealized(p).unrealizedEth;
+      sum += eth + (pnl ?? 0);
+    }
   }
   return sum;
 }
@@ -117,7 +124,9 @@ export function computeUnrealized(p: MemPaperPosition): {
   const entry = parseFiniteNum(p.entryPrice);
   const mark = parseFiniteNum(p.currentPrice);
 
-  if (p.markSource === "oracle_pending" || mark == null || entry == null) {
+  if (p.markSource === "oracle_pending" || mark == null || mark < 0 || entry == null || entry <= 0) {
+    p.pnlPct = null;
+    p.pnlAbs = null;
     return {
       unrealizedPct: null,
       unrealizedEth: null,
@@ -125,20 +134,12 @@ export function computeUnrealized(p: MemPaperPosition): {
     };
   }
 
-  if (entry === 0) {
-    return {
-      unrealizedPct: null,
-      unrealizedEth: null,
-      markLabel: p.markSource === "stub_entry" ? "stub_entry" : String(p.markSource),
-    };
-  }
-
   if (p.markSource === "stub_entry" && mark === entry) {
     p.pnlPct = 0;
-    p.pnlAbs = "0";
+    p.pnlAbs = parseEthSize(p.size) === null ? null : "0";
     return {
       unrealizedPct: 0,
-      unrealizedEth: 0,
+      unrealizedEth: parseEthSize(p.size) === null ? null : 0,
       markLabel: "stub_entry (=entry)",
     };
   }
@@ -149,11 +150,7 @@ export function computeUnrealized(p: MemPaperPosition): {
 
   p.pnlPct = pct;
   p.pnlAbs =
-    unrealizedEth != null
-      ? String(unrealizedEth)
-      : mark != null && entry != null
-        ? String(mark - entry)
-        : null;
+    unrealizedEth != null ? String(unrealizedEth) : null;
 
   const markLabel =
     p.markSource === "manual"
@@ -175,8 +172,8 @@ export function setPaperMark(
 ): MemPaperPosition | null {
   const pos = memPaperPositions.find((p) => p.id === id);
   if (!pos) return null;
-  const trimmed = String(mark ?? "").trim();
-  if (!trimmed.length) return null;
+  const trimmed = decimalText(mark, true);
+  if (trimmed === null) return null;
   pos.currentPrice = trimmed;
   pos.markSource = source;
   computeUnrealized(pos);
@@ -321,8 +318,7 @@ export async function hydrateOpenFromDb(): Promise<void> {
  * Call on balance/list reads so cash matches opens after restart.
  */
 export function recomputePaperCashFromOpens(): void {
-  const startingCash =
-    Number(process.env.PAPER_CASH_ETH?.trim() || "1.0") || 1.0;
+  const startingCash = startingPaperCash();
   let spent = 0;
   for (const p of getOpenPositions()) {
     const eth = parseEthSize(p.size);

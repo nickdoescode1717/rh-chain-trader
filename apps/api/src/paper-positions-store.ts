@@ -17,6 +17,6 @@ export {
   setPaperMark,
   toPositionPayload,
   computeUnrealized,
-  sumPositionsEthStub,
+  sumPositionsEth,
   type MemPaperPosition,
 } from "./paper-positions-mem.js";

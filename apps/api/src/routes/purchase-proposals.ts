@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { desc, eq } from "drizzle-orm";
 import { auditLog, positions, purchaseProposals } from "@rh/db";
 import { getDb } from "../db.js";
+import { isRecord } from "../validation.js";
 import {
   memPurchaseProposals,
   type MemPurchaseProposal,
@@ -47,8 +48,20 @@ purchaseProposalRoutes.get("/", async (c) => {
 });
 
 purchaseProposalRoutes.post("/", async (c) => {
-  const body = (await c.req.json().catch(() => null)) as CreateBody | null;
-  if (!body) return c.json({ error: "invalid_json" }, 400);
+  const rawBody: unknown = await c.req.json().catch(() => null);
+  if (!isRecord(rawBody)) return c.json({ error: "invalid_json" }, 400);
+  const body = rawBody as CreateBody;
+  for (const field of ["tokenId", "leadSource", "rationale", "expiresAt", "channel", "note"] as const) {
+    if (body[field] != null && typeof body[field] !== "string") {
+      return c.json({ error: `invalid_${field}` }, 400);
+    }
+  }
+  for (const field of ["scores", "exits"] as const) {
+    if (body[field] != null && !isRecord(body[field])) return c.json({ error: `invalid_${field}` }, 400);
+  }
+  if (body.sources != null && (!Array.isArray(body.sources) || !body.sources.every(isRecord))) {
+    return c.json({ error: "invalid_sources" }, 400);
+  }
   const keyField = rejectKeyFields(body as unknown as Record<string, unknown>);
   if (keyField) {
     return c.json(
@@ -68,7 +81,7 @@ purchaseProposalRoutes.post("/", async (c) => {
   const size = encodeSize(body);
   if (!size) {
     return c.json(
-      { error: "size_required", hint: "Provide sizeEth or sizeUsd (one), or size string" },
+      { error: "invalid_size", hint: "Provide exactly one positive finite sizeEth, sizeUsd, or size ('eth:amount' / 'usd:amount')." },
       400
     );
   }
@@ -82,7 +95,7 @@ purchaseProposalRoutes.post("/", async (c) => {
     body.slippageBps === undefined || body.slippageBps === null
       ? null
       : Number(body.slippageBps);
-  if (slippageBps !== null && (!Number.isFinite(slippageBps) || slippageBps < 0)) {
+  if (slippageBps !== null && (typeof body.slippageBps !== "number" || !Number.isInteger(slippageBps) || slippageBps < 0 || slippageBps > 10_000)) {
     return c.json({ error: "invalid_slippageBps" }, 400);
   }
 
@@ -234,11 +247,13 @@ function approveResponse(
 
 purchaseProposalRoutes.post("/:id/approve", async (c) => {
   const id = c.req.param("id");
-  const actorBody = (await c.req.json().catch(() => ({}))) as {
-    actor?: string;
-    buyAddress?: string;
-    preferredBuyAddress?: string;
-  };
+  const actorBody = await c.req.json().catch(() => ({}));
+  if (!isRecord(actorBody)) return c.json({ error: "invalid_json" }, 400);
+  for (const field of ["actor", "buyAddress", "preferredBuyAddress"] as const) {
+    if (actorBody[field] != null && typeof actorBody[field] !== "string") {
+      return c.json({ error: `invalid_${field}` }, 400);
+    }
+  }
   const keyField = rejectKeyFields(actorBody as Record<string, unknown>);
   if (keyField) {
     return c.json(
@@ -246,9 +261,9 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
       400
     );
   }
-  const actor = actorBody.actor ?? "nick_grok";
+  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
   const preferred =
-    actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null;
+    (actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null) as string | null;
   const db = getDb();
 
   if (!db) {
@@ -325,11 +340,14 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
 
 purchaseProposalRoutes.post("/:id/reject", async (c) => {
   const id = c.req.param("id");
-  const actorBody = (await c.req.json().catch(() => ({}))) as {
-    actor?: string;
-    reason?: string;
-  };
-  const actor = actorBody.actor ?? "nick_grok";
+  const actorBody = await c.req.json().catch(() => ({}));
+  if (!isRecord(actorBody)) return c.json({ error: "invalid_json" }, 400);
+  for (const field of ["actor", "reason"] as const) {
+    if (actorBody[field] != null && typeof actorBody[field] !== "string") {
+      return c.json({ error: `invalid_${field}` }, 400);
+    }
+  }
+  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
   const db = getDb();
 
   if (!db) {

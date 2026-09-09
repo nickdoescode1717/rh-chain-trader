@@ -1,6 +1,8 @@
 /**
  * Helpers for paper purchase proposals. See docs/PURCHASE_PROPOSALS.md
  */
+import { decimalText } from "../validation.js";
+
 export type CreateBody = {
   tokenCA?: string;
   tokenAddress?: string;
@@ -22,18 +24,25 @@ export type CreateBody = {
 
 const ADDR_RE = /^0x[0-9a-f]{40}$/;
 
-export function normalizeAddress(raw: string): string | null {
+export function normalizeAddress(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
   const a = raw.trim().toLowerCase();
   return ADDR_RE.test(a) ? a : null;
 }
 
 export function encodeSize(body: CreateBody): string | null {
-  if (body.size?.trim()) return body.size.trim();
-  if (body.sizeEth !== undefined && body.sizeEth !== null && `${body.sizeEth}` !== "")
-    return `eth:${body.sizeEth}`;
-  if (body.sizeUsd !== undefined && body.sizeUsd !== null && `${body.sizeUsd}` !== "")
-    return `usd:${body.sizeUsd}`;
-  return null;
+  const supplied = [body.size, body.sizeEth, body.sizeUsd].filter((v) => v != null);
+  if (supplied.length !== 1) return null;
+  if (body.size != null) {
+    if (typeof body.size !== "string") return null;
+    const match = /^(eth|usd):(.+)$/.exec(body.size.trim());
+    if (!match) return null;
+    const amount = decimalText(match[2]);
+    return amount === null ? null : `${match[1]}:${amount}`;
+  }
+  const unit = body.sizeEth != null ? "eth" : "usd";
+  const amount = decimalText(body.sizeEth ?? body.sizeUsd);
+  return amount === null ? null : `${unit}:${amount}`;
 }
 
 export function isExpired(expiresAt: Date | string | null | undefined): boolean {

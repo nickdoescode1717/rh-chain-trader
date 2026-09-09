@@ -9,7 +9,7 @@ import {
   computeUnrealized,
   getPaperCashEth,
   listOpenPositionsMerged,
-  sumPositionsEthStub,
+  sumPositionsEth,
 } from "../paper-positions-mem.js";
 
 export const paperBalanceRoutes = new Hono();
@@ -47,7 +47,7 @@ paperBalanceRoutes.get("/", async (c) => {
   });
 
   const cash = getPaperCashEth();
-  const positionsEth = sumPositionsEthStub();
+  const positionsEth = sumPositionsEth();
   const equity = cash + positionsEth;
 
   const buyWallets = memBuyWallets.map((w) => ({
@@ -60,12 +60,13 @@ paperBalanceRoutes.get("/", async (c) => {
   }));
 
   const incompleteNote = incompleteMarks
-    ? " Some marks incomplete (null uPnL treated as 0 in sum)."
+    ? " Incomplete ETH valuation: unpriced ETH positions use cost basis; USD positions are excluded until conversion is available."
     : "";
 
   return c.json({
     data: {
       paperOnly: true as const,
+      valuationComplete: !incompleteMarks,
       cashEth: fmtEth(cash),
       equityEth: fmtEth(equity),
       positions,
@@ -79,7 +80,7 @@ paperBalanceRoutes.get("/", async (c) => {
       note:
         "PAPER tracking — no keys; watched alphas excluded. Marks may be stub_entry / oracle_pending — not live oracle." +
         incompleteNote +
-        " positionsEth uses size eth notional until oracle. Buy wallets optional via POST /buy-wallets.",
+        " positionsEth uses ETH cost basis plus available unrealized ETH PnL. Buy wallets optional via POST /buy-wallets.",
     },
     paperOnly: true,
   });

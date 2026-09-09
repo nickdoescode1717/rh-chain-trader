@@ -6,6 +6,14 @@ Last updated: 2026-09-09
 
 Related: `docs/PURCHASE_PROPOSALS.md` (buy path). This doc is the **exit / open-position** counterpart.
 
+## Implemented valuation behavior
+
+`POST /positions/:id/paper-mark` accepts a finite, non-negative decimal mark (zero represents a total loss). Invalid input returns 400 without changing the prior mark. Entry estimates must be positive finite decimals; invalid estimates remain unknown.
+
+`GET /paper-balance` values ETH-sized positions as cost basis plus available unrealized ETH PnL, including manual marks. Unpriced ETH positions retain cost basis. USD-sized positions are excluded from ETH totals because no exchange rate is available; their ETH PnL stays null. `valuationComplete=false` identifies incomplete valuation. These are paper estimates, not executable quotes. A configured `PAPER_CASH_ETH=0` is respected.
+
+The API tests exercise the in-memory create/approve/mark/balance flow. PostgreSQL persistence, restart recovery, and concurrent decisions are not covered by those tests.
+
 ## Purpose
 
 After a paper buy is simulated (or a paper fill is recorded), keep an **open paper position** Nick can monitor overnight:
