@@ -11,7 +11,7 @@ Last updated: 2026-09-09 ~00:13 ET
 ## Standing process (Nick)
 1. Find RH Chain 4663 tokens that did really well  
 2. That had early CT calls at **sub $2M mcap**  
-3. Identify who called them that early (public evidence; no scrape / X API until funded)  
+3. Identify who called them that early (public evidence via **unpaid browser x.com** + indexed press; no scrape bots / no paid X API required)  
 4. Append rows below with evidence + confidence + watch yes/maybe/no  
 5. Repeat — ask Coder to commit; ping CoS on meaningful additions  
 
@@ -37,13 +37,15 @@ Last updated: 2026-09-09 ~00:13 ET
 | `@frankdegods` (Frank / DeGods) | Early **wallet** buy $MEME ~$1,491 → ~810x paper (Lookonchain); **not** proven public CT call at sub-$2M | cryptotimes + lookonchain/feeds/71465 | High buy / low as CT-caller | 2026-09-09 |
 | `@ConcernRH` | “What’s The Concern?” narrative sister to Aron/Vlad feud; CONCERN CA also Gate-listed — narrative amp, not proven early $MEME caller | cryptotimes quote + Gate Alpha CONCERN `0x4C24e2bD…e0A0` | Med narrative / low early-caller | 2026-09-09 |
 
+| `@NetNetCap` | Official NetNet ($NET) CT — reserve-fund utility on RH 4663; Ogle amp | docs.netnet.capital + CA `0xCA9c78Dd…0eDf`; genesis Jul not early | High (issuer) / low early-fit | 2026-09-09 |
+
 ## UNKNOWN / blocked
 | Gap | Notes |
 | --- | --- |
-| CASHCAT early CT callers | Press covers wallets/PnL, not durable CT handles; soft wall on X timelines |
-| Third-party early $CRUMBS callers | Need Nick paste from announcement quote/reply graph or funded X |
-| $MEME (RH 4663) third-party sub-$2M CT callers | Press = wallets/PnL + issuer; KuCoin tape often cites ~$3M→$150M window (may already be >$2M). Soft wall on X timelines |
-| Obscura ($OBS) third-party sub-$2M CT callers | Soft wall; Nick-linked status/2096349715642126787 is ~Sep 5 (post Aug 21 pair) — not proven early call |
+| CASHCAT early CT callers | Press covers wallets/PnL; keep hunting via browser search/reply-chains on watchlist alphas |
+| Third-party early $CRUMBS callers | Hunt quote/reply graph on `@crumbsfamily` via browser; Nick paste optional accelerator |
+| $MEME (RH 4663) third-party sub-$2M CT callers | Press = wallets/PnL + issuer; KuCoin ~$3M→$150M may already fail sub-$2M. Keep browser hunt on `@amemecoinrh` reply graph |
+| Obscura ($OBS) third-party sub-$2M CT callers | Hunt `@obscuracex` reply graph; Nick status/2096349715642126787 is ~Sep 5 (post Aug 21) — not early call |
 
 ## Next mine
 - TENDIES, HMM, YOLO, PIPEDOG, HOODRAT; INDEX/DELTA/HOOKR
@@ -58,7 +60,7 @@ Last updated: 2026-09-09 ~00:13 ET
 - 2026-09-09: STONKBROKER/SPACEHOOD mine — @OxSimpleFarmer/@clutchmarkets yes; SPACEHOOD reinforces @Natan_benish; third-party early callers UNKNOWN.
 
 ## Append — TENDIES/HMM/YOLO/PIPEDOG mine (2026-09-09 ~00:14 ET)
-No new solid sub-$2M early CT @handles on indexed public web. Curator “Robinhood Memes” handle unverified. Third-party early-caller discovery blocked without Nick pastes or funded X / KOL first-touch API.
+No new solid sub-$2M early CT @handles on indexed public web. Curator “Robinhood Memes” handle unverified. Third-party early-caller discovery: continue unpaid browser CT (watchlist + search + reply-chains). Nick pastes / paid X optional accelerators — not blockers.
 
 ## Append — $MEME mine (2026-09-09 ~00:18 ET)
 **Chain:** Robinhood Chain **4663** only — CA `0x385F4f8ae47651ce5F58F5265395a669f8281e18` (A Meme Coin / ticker often shown as MEME or AMC on DEX UIs). **Not** Solana/ETH Memecoin clones.
@@ -72,3 +74,9 @@ No new solid sub-$2M early CT @handles on indexed public web. Curator “Robinho
 **Nick tweet:** status/2096349715642126787 ≈ **2026-09-05 21:28 UTC** — body recovered: **$AOBS Agent OBS LIVE** Phase 2, CA `0x47366e0f257ac009e82bd46fb74e2fb50826ce98` (not early $OBS call).
 **Adds:** `@obscuracex`/`@ObscuraCEX` → yes (issuer). Third-party early callers → **UNKNOWN**.
 **Live vs pattern:** Pattern library **yes** (Crumbs-class early platform). Live paper = **WATCH candidate only** if Nick wants platform DD — not CLEAR; no auto proposal. Crumbs-class = pattern not chase.
+
+## Append — unpaid CT hunt #1 (2026-09-09 ~09:09 ET)
+- Soft-wall on x.com search; profile skim OK.
+- Smart LP = Clutch product expansion (already `@clutchmarkets`/`@OxSimpleFarmer` yes) — watch Special Projects for new CAs.
+- `@NetNetCap` → maybe (issuer; $NET ~$3.5M SKIP fresh).
+- $CRUMBS tape still sub-$500K but Nick pattern-only — no CLEAR.
