@@ -4,21 +4,37 @@
  */
 import { Hono } from "hono";
 import { memBuyWallets } from "./buy-wallets.js";
+import {
+  getOpenPositions,
+  paperCashEth,
+  sumPositionsEthStub,
+} from "../paper-positions-mem.js";
 
 export const paperBalanceRoutes = new Hono();
 
+function fmtEth(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  const s = n.toFixed(6).replace(/\.?0+$/, "");
+  return s || "0";
+}
+
 paperBalanceRoutes.get("/", (c) => {
-  const cashEth = process.env.PAPER_CASH_ETH?.trim() || "1.0";
-  // Positions API still 403 — empty until paper positions wire-up
-  const positions: Array<{
-    id: string;
-    tokenCA?: string;
-    symbol?: string;
-    size?: string;
-    entryPrice?: string;
-    mark?: string;
-    pnlPct?: number | null;
-  }> = [];
+  const open = getOpenPositions();
+  const positions = open.map((p) => ({
+    id: p.id,
+    tokenCA: p.tokenAddress,
+    symbol: p.symbol ?? undefined,
+    size: p.size ?? undefined,
+    entryPrice: p.entryPrice ?? undefined,
+    mark: p.currentPrice ?? undefined,
+    markSource: p.markSource,
+    pnlPct: p.pnlPct,
+    proposalId: p.proposalId,
+  }));
+
+  const cash = paperCashEth;
+  const positionsEth = sumPositionsEthStub();
+  const equity = cash + positionsEth;
 
   const buyWallets = memBuyWallets.map((w) => ({
     address: w.address,
@@ -29,24 +45,20 @@ paperBalanceRoutes.get("/", (c) => {
     note: "rpc_pending — read-only RH 4663 balance when RPC wired; no keys",
   }));
 
-  const cash = Number(cashEth);
-  const positionsEth = 0;
-  const equity = (Number.isFinite(cash) ? cash : 0) + positionsEth;
-
   return c.json({
     data: {
       paperOnly: true as const,
-      cashEth: String(cashEth),
-      equityEth: equity.toFixed(6).replace(/\.?0+$/, "") || "0",
+      cashEth: fmtEth(cash),
+      equityEth: fmtEth(equity),
       positions,
       buyWallets,
       totals: {
-        cashEth: String(cashEth),
-        positionsEth: "0",
-        equityEth: equity.toFixed(6).replace(/\.?0+$/, "") || "0",
+        cashEth: fmtEth(cash),
+        positionsEth: fmtEth(positionsEth),
+        equityEth: fmtEth(equity),
       },
       note:
-        "PAPER — buy wallets empty until Nick registers via POST /buy-wallets; watched alphas excluded; no keys",
+        "PAPER tracking — no keys; watched alphas excluded. positionsEth uses size eth notional until oracle. Buy wallets optional via POST /buy-wallets.",
     },
     paperOnly: true,
   });

@@ -12,6 +12,7 @@ import { walletEventRoutes } from "./routes/wallet-events.js";
 import { purchaseProposalRoutes } from "./routes/purchase-proposals.js";
 import { buyWalletRoutes } from "./routes/buy-wallets.js";
 import { paperBalanceRoutes } from "./routes/paper-balance.js";
+import { positionRoutes } from "./routes/positions.js";
 
 const app = new Hono();
 
@@ -32,6 +33,7 @@ app.route("/wallet-events", walletEventRoutes);
 app.route("/purchase-proposals", purchaseProposalRoutes);
 app.route("/buy-wallets", buyWalletRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
+app.route("/positions", positionRoutes);
 
 app.get("/", (c) =>
   c.json({
@@ -52,15 +54,13 @@ app.get("/", (c) =>
       "/purchase-proposals/:id/reject",
       "/buy-wallets",
       "/paper-balance",
+      "/positions",
     ],
   })
 );
 
-// Explicitly refuse live trading-shaped routes (orders/positions stay dark)
+// Explicitly refuse live trading-shaped order routes. Paper /positions is live above.
 app.all("/orders/*", (c) =>
-  c.json({ error: "DISABLED_PHASE1_NO_TRADING" }, 403)
-);
-app.all("/positions/*", (c) =>
   c.json({ error: "DISABLED_PHASE1_NO_TRADING" }, 403)
 );
 
