@@ -58,14 +58,8 @@ VALUES
    '{"liquidity":70,"momentum":20,"holderConcentration":20,"contractRisk":30,"narrative":10,"evidenceWeight":0.4}'::jsonb,
    'FICTIONAL stable placeholder score.');
 
-INSERT INTO wallets (address, label, tags, notes)
-VALUES (
-  '0xFICTIONALWALLET000000000000000000000001',
-  'FICTIONAL research watcher',
-  '["seed_fictional","demo"]'::jsonb,
-  'Not a real wallet.'
-)
-ON CONFLICT DO NOTHING;
+-- FICTIONAL wallet seed removed — invalid hex breaks eth_getLogs.
+-- Add real watched wallets via POST /watched-wallets (0x + 40 hex).
 
 INSERT INTO reports (token_id, title, summary, body_markdown)
 VALUES (
