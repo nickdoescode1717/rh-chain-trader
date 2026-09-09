@@ -19,7 +19,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
 - Approval path: **Grok Bot primary**; **Telegram fallback** (same proposal payload; TG not required for MVP).
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- No X scraping. An opt-in official X API scanner exists; live access and funding are not yet validated.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis and the primary bot handoff. No direct X page scraping.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
@@ -40,6 +40,11 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**Prelaunch project research branch (2026-09-09)**
+- Migration 0007 registers Nick's `tradedotcv` example. Opt-in public homepage/passive subdomain collector, ten-category evidence rubric, optional xAI Grok narrative, `/research/projects` APIs, Grok research handoff and Project research dashboard are implemented; see `docs/PRELAUNCH_RESEARCH.md`.
+- Live public inspection retrieved trade.cv; certificate lookup was unavailable. Initial review is `docs/research/tradedotcv-2026-09-09.md`. No token/deployer identity or legitimacy verified; overall rating withheld for insufficient evidence.
+- Original Grok-primary and Telegram-fallback proposal interfaces remain unchanged. This adds no signer or automated entry/exit. Build/lint and 50 unit/API tests passed; DB integration, live X/xAI and browser interaction still require validation.
 
 **X discovery branch (2026-09-09)**
 - User now wants X/follow-graph discovery leading toward automatic token-launch buys; account selection and spend/mode parameters were requested and remain pending.

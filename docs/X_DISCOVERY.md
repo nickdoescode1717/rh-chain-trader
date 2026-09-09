@@ -2,7 +2,13 @@
 
 The Discovery dashboard manages monitored X accounts and shows posts, address mentions, observed follower/following changes, and exact-address matches against the existing launch collector. This release collects evidence; it does not authorize or execute buys.
 
-## Enable collection
+## Planned provider: TwitterAPI.io
+
+Nick selected **TwitterAPI.io** on 2026-09-09 and asked to configure it later. This is the planned provider for X scanning; its adapter and credentials are not configured yet. The current scanner uses the official X API, so the instructions below describe only that existing implementation.
+
+When setup resumes, verify TwitterAPI.io's current endpoints, authentication, pagination, user-ID/handle behavior, post/profile/follower/following coverage, rate limits and costs against its documentation. Normalize its responses into the existing evidence/cursor flow and validate incomplete snapshots, deduplication and retry behavior. Do not merely substitute a TwitterAPI.io key into `X_BEARER_TOKEN` or change the base URL. Keep collection disabled until the adapter is ready. Grok remains the analysis and primary bot handoff layer, separate from this data-provider choice.
+
+## Existing official X API setup (not TwitterAPI.io)
 
 1. Apply `packages/db/drizzle/0006_social_discovery.sql` to the existing database. New Compose volumes mount it at initialization; existing volumes do not automatically run new init scripts. Use the repository migration process after reviewing which earlier migrations are pending, or apply this SQL directly through your database administration process.
 2. Rebuild API, collector, and web. Add monitored handles through `/discovery` or `POST /discovery/accounts` with `{"handle":"example","watchFollowing":true,"watchFollowers":false}`. Repeat with `enabled:false` to pause an account. No accounts are silently imported from the historical Markdown watchlist.
