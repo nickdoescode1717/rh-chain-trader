@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'api: no unit tests (use integration later)'"
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",

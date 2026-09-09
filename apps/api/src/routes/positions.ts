@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { desc, eq } from "drizzle-orm";
 import { positions } from "@rh/db";
 import { getDb } from "../db.js";
+import { decimalText, isRecord } from "../validation.js";
 import {
   getOpenPositions,
   hydrateOpenFromDb,
@@ -113,12 +114,8 @@ positionRoutes.get("/", async (c) => {
  */
 positionRoutes.post("/:id/paper-mark", async (c) => {
   const id = c.req.param("id");
-  let body: Record<string, unknown> = {};
-  try {
-    body = (await c.req.json()) as Record<string, unknown>;
-  } catch {
-    body = {};
-  }
+  const body: unknown = await c.req.json().catch(() => null);
+  if (!isRecord(body)) return c.json({ error: "invalid_json", paperOnly: true }, 400);
 
   // Reject any key / credential fields — paper mark only
   const forbidden = [
@@ -158,13 +155,17 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
   }
 
   const sourceRaw = body.source;
+  const mark = decimalText(markRaw, true);
+  if (mark === null) {
+    return c.json({ error: "invalid_mark", paperOnly: true, note: "Mark must be a finite non-negative decimal." }, 400);
+  }
   const source: "manual" | "stub_entry" =
     sourceRaw === "stub_entry" ? "stub_entry" : "manual";
 
   // Ensure DB opens are in mem before mark (e.g. post-restart)
   await hydrateOpenFromDb();
 
-  const pos = setPaperMark(id, String(markRaw), source);
+  const pos = setPaperMark(id, mark, source);
   if (!pos) {
     return c.json(
       {
@@ -181,7 +182,7 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
     try {
       await db
         .update(positions)
-        .set({ currentPrice: pos.currentPrice })
+        .set({ currentPrice: pos.currentPrice, pnlAbs: pos.pnlAbs, pnlPct: pos.pnlPct })
         .where(eq(positions.id, id));
     } catch (err) {
       console.warn(

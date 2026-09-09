@@ -40,6 +40,12 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Codex paper-workflow fixes (2026-09-09 branch)**
+- Paper `/positions` routes are wired (the older backlog notes below are stale); live sells remain a 501 stub.
+- Proposal amounts require one positive finite ETH/USD amount; malformed JSON shapes, marks, and slippage are rejected.
+- Paper equity includes manually marked ETH position values. Unknown marks retain cost basis and report `valuationComplete=false`; USD positions are excluded from ETH totals pending conversion.
+- API regression tests: `pnpm --filter @rh/api test` after building workspace packages. Tests use in-memory routes; PostgreSQL persistence/restart behavior needs separate integration verification.
+
 **Done**
 - Factory verification + launch ingest (Pons V2 / pools.trade) — corroboration capability; `0002_verify_factories.sql`
 - Live paper stack: RPC green, trading false; real Pons tokens ingested

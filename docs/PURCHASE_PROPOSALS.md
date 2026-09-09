@@ -83,8 +83,8 @@ Same shape for Grok primary and Telegram fallback.
 |-------|------|
 | `tokenCA` | RH Chain token contract (checksum or lower); required |
 | `chainId` | **Must be `4663`** |
-| `sizeEth` **or** `sizeUsd` | Exactly one preferred; API stores as text `eth:…` / `usd:…` |
-| `slippageBps` | Integer bps (e.g. 100 = 1%) |
+| `sizeEth` **or** `sizeUsd` | Exactly one positive finite decimal amount, or one `size` string formatted `eth:amount` / `usd:amount`; conflicting fields are rejected |
+| `slippageBps` | JSON number, integer from 0 through 10000 (e.g. 100 = 1%) |
 | `exits` | `tp` / `sl` / `trail` / `time` (names flexible in JSON; store as jsonb) |
 | `scores.framework` | `meme` \| `utility` (separate frameworks — never conflate) |
 | `leadSource` | `ct` \| `watched_wallet` |
@@ -102,7 +102,7 @@ Base: tunnel `http://127.0.0.1:13001` (prod) or local `:3001`.
 | `POST` | `/purchase-proposals/:id/approve` | Set `approved` + `audit_log`; return `{ next: "signer_handoff_stub", revalidateRequired: true }` — **DO NOT sign** |
 | `POST` | `/purchase-proposals/:id/reject` | Set `rejected` + audit |
 
-`/orders/*` and `/positions/*` remain **403**.
+`/orders/*` remains **403**. Paper `/positions` supports listing and manual marks; `/positions/:id/sell` remains a **501** stub.
 
 ## Revalidate checklist (on approve)
 
