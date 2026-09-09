@@ -5,7 +5,6 @@
 
 import type { Position, PaperBalance } from "./api.js";
 import { section, str, truncate } from "./format-desk.js";
-
 type FormattedMessage = {
   text: string;
   reply_markup?: {
@@ -35,7 +34,7 @@ export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage 
         ? `$${input.sizeUsd} (paper)`
         : input.size ?? "-";
   const lines = [
-    section("PAPER FILL"),
+    section("PAPER FILL", "🧾"),
     "Status: paper execution receipt (stub)",
     `Proposal: ${input.proposalId}`,
     `Token: $${str(input.symbol, "?")} · ${str(input.tokenCA, "-")}`,
@@ -75,7 +74,7 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
       : `pct=${pos.pnlPct ?? "-"} abs=${pos.pnlAbs ?? "-"}`;
 
   const lines = [
-    section("PAPER LARGE-MOVE"),
+    section("PAPER LARGE-MOVE", "📈"),
     `Position: ${pos.id}`,
     `CA: ${ca || "-"} (chain ${pos.chainId ?? 4663})`,
     `Size: ${pos.size ?? "-"} (paper)`,
@@ -104,14 +103,14 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
 
 export function formatBalance(b: PaperBalance): FormattedMessage {
   const lines: string[] = [
-    section("PAPER BALANCE"),
+    section("PAPER BALANCE", "💰"),
     "Nick buy wallets / paper purse — NOT watched alphas",
     "",
-    section("PAPER PURSE"),
+    section("PAPER PURSE", "💵"),
     `Cash: ${b.cashEth} ETH`,
     `Equity: ${b.equityEth} ETH`,
     "",
-    section("PAPER POSITIONS"),
+    section("PAPER POSITIONS", "📦"),
   ];
   if (!b.positions.length) {
     lines.push("• (none open)");
@@ -124,7 +123,7 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
       lines.push(`  CA ${pos.tokenCA ?? "-"} · id ${pos.id}`);
     }
   }
-  lines.push("", section("BUY WALLETS (4663)"));
+  lines.push("", section("BUY WALLETS (4663)", "🏦"));
   if (!b.buyWallets.length) {
     lines.push("• (empty — register via POST /buy-wallets when ready)");
     lines.push("• RPC balances: pending until addresses set (read-only, no keys)");
@@ -136,7 +135,7 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
   }
   lines.push(
     "",
-    section("TOTALS"),
+    section("TOTALS", "Σ"),
     `Cash ${b.totals.cashEth} ETH · Positions ${b.totals.positionsEth ?? "0"} · Equity ${b.totals.equityEth} ETH`,
     "",
     str(b.note, "PAPER ONLY — watched wallets excluded. No keys.")

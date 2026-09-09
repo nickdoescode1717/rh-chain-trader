@@ -24,12 +24,18 @@ export function num(v: unknown): string {
   return Number.isFinite(n) ? String(n) : str(v);
 }
 
-/** Map 0-100 or 0-1 confidence to display */
-export function scoreDisplay(v: unknown, asConfidence = false): string {
-  if (v === null || v === undefined || v === "") return "-";
+/** Normalize score to 0-100 (accepts 0-1 confidence) */
+export function toHundred(v: unknown, asConfidence = false): number | null {
+  if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
-  if (!Number.isFinite(n)) return str(v);
-  if (asConfidence && n <= 1) return `${Math.round(n * 100)}/100`;
+  if (!Number.isFinite(n)) return null;
+  if (asConfidence && n <= 1) return n * 100;
+  return n;
+}
+
+export function scoreDisplay(v: unknown, asConfidence = false): string {
+  const n = toHundred(v, asConfidence);
+  if (n == null) return "-";
   return `${Math.round(n)}/100`;
 }
 
@@ -120,7 +126,6 @@ export function evidenceBullets(p: Proposal): string[] {
       if (line) out.push(`• ${line.slice(0, 220)}`);
     }
   }
-  // dedupe
   return [...new Set(out)].slice(0, 5);
 }
 
@@ -175,8 +180,9 @@ export function riskLines(p: Proposal): string[] {
   return out.slice(0, 8);
 }
 
-export function section(title: string): string {
-  return `—— ${title} ——`;
+/** Section header with light emoji — plain text safe */
+export function section(title: string, emoji = "▪️"): string {
+  return `${emoji} ${title}`;
 }
 
 export function truncate(lines: string[]): string {
