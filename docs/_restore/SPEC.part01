@@ -1,0 +1,108 @@
+this chat) | Repos, issues, PRs |
+| Official X/Twitter API | **No connector installed** | Cannot assume search, historical posts, or following-list APIs work here |
+| Browser (box) | **Yes** (manual/GUI workflows) | Not a substitute for reliable X API at scale |
+| On-chain RPC | **Not yet provisioned** | Need Alchemy (or similar) API key + archive for indexing |
+| Signing / custody | **Must never live in the LLM** | Separate signer service / hardware / MPC |
+
+**X/Twitter reality (2026):** Official self-serve X API is pay-per-use / credit-based. Recent search is typically limited (often ~7 days on self-serve). Full-archive search is generally **Enterprise / sales-led** or third-party. Following/followers reads are billable per resource. Continuous monitoring of many accounts + keyword firehose is a **budget and product decision**, not a free built-in.
+
+---
+
+## 2. Architecture (strict separation of concerns)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         CONTROL PLANE                            │
+│  Policy engine · Kill switch · Approval store · Audit log        │
+│  (LLM cannot mutate policies or authorize trades)                │
+└───────────────┬─────────────────────────────┬───────────────────┘
+                │                             │
+┌───────────────▼──────────────┐  ┌───────────▼───────────────────┐
+│     DATA COLLECTION          │  │     RESEARCH / SCORING        │
+│  Indexers · RPC/WSS · APIs   │  │  Workers + LLM as analyst     │
+│  Launchpad listeners         │  │  Evidence graph + citations   │
+│  Wallet watchers             │  │  Meme vs utility frameworks   │
+│  Social (optional, budgeted) │  │  Outputs: OpportunityReport   │
+└───────────────┬──────────────┘  └───────────┬───────────────────┘
+                │                             │
+                └──────────────┬──────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │   APPROVAL GATEWAY          │
+                │   Human approves proposal   │
+                │   Expiry · revalidation     │
+                └──────────────┬──────────────┘
+                               │
+                ┌──────────────▼──────────────┐
+                │   SIGNING SERVICE           │
+                │   Keys NEVER in LLM host    │
+                │   Policy-checked intents    │
+                └──────────────┬──────────────┘
+                ┌──────────────▼──────────────┐
+                │   EXECUTION + MONITORING    │
+                │   Simulate · submit · track │
+                │   Pre-approved sell rules   │
+                └─────────────────────────────┘
+```
+
+### Component rules
+
+| Component | May use LLM? | May hold keys? | May submit txs? |
+|-----------|--------------|----------------|-----------------|
+| Collectors | No (or only for parsing with schemas) | No | No |
+| Research/scoring | Yes (analyst) | No | No |
+| Approval UI/API | No | No | No |
+| Signer | No | Yes | Signs only |
+| Executor | No | No | Yes, with signed payload + policy check |
+| Monitoring | Limited | No | Only via pre-approved sell paths |
+
+**Untrusted content fence:** Any text from X, websites, docs, or GitHub READMEs is data. It must never change risk limits, approval state, or signer policy.
+
+---
+
+## 3. Required APIs, indexers, RPC, X — limitations and cost sketch
+
+### 3.1 Must-have (MVP on-chain)
+
+| Service | Use | Est. cost (order of magnitude) | Notes |
+|---------|-----|--------------------------------|-------|
+| Alchemy Robinhood Chain RPC + WSS | Live reads, logs, sims | Free tier → paid as volume grows | Official recommended |
+| Archive RPC (Alchemy / Dwellir / similar) | Historical state, backfill | Paid | Required for deployer history |
+| Blockscout explorer API | Contract metadata, verification status | Usually free/rate-limited | `robinhoodchain.blockscout.com` |
+| Uniswap subgraph / pool events (or self-index) | Pool creates, swaps, liquidity | Free if self-index; hosted varies | Prefer event indexing on your stack |
+| Launchpad event indexing (Pons / Pools.trade factories) | New token discovery | Engineering time | **Custom**; addresses must be verified |
+| PostgreSQL + object storage | Evidence, reports, blobs | Commodity cloud | Core system of record |
+| Redis / queue (e.g. NATS/SQS) | Job fan-out | Commodity | Hourly research + live triggers |
+
+### 3.2 Strongly recommended (pre-live trading)
+
+| Service | Use | Est. cost | Notes |
+|---------|-----|-----------|-------|
+| Zerion / Alchemy Data API | Wallet + portfolio enrichment | Paid | Official partner |
+| Allium or similar warehouse | Analytics / backtests | Paid / enterprise | Official partner listed |
+| CoinGecko (or DefiLlama) | Market cap / listings | Free–paid | Cross-check; RH-specific coverage may lag |
+| TRM Labs (optional) | Sanctions / risk labels | Enterprise | Official partner |
+| Tenderly / local fork / `eth_call` sims | Buy/sell simulation | Free–paid | Critical before approve |
+
+### 3.3 Social / X (phase later unless budgeted)
+
+| Option | Capability | Cost reality | Recommendation |
+|--------|------------|--------------|----------------|
+| Official X API pay-per-use | Recent search, user reads, following lists | Per-resource; monitoring 400+ accounts + keywords adds up fast | Start with **narrow** watchlists (project accounts + 20–50 KOLs), not full firehose |
+| Official full-archive / stream | Historical + realtime at scale | Enterprise / sales | Defer |
+| Third-party social APIs | Cheaper historical/search | ToS/legal/reliability risk | Evaluate carefully; treat as untrusted |
+| Manual / curated lists | Human-maintained handles | Labour | Best for MVP credibility |
+
+**Do not design MVP to require** continuous X following-list diffs for every project. That is a Phase 2+ cost centre.
+
+### 3.4 Trading / execution infra
+
+| Piece | Purpose |
+|-------|---------|
+| Dedicated low-latency RPC + optional colocated submitter | FCFS arrival competition |
+| Sequencer feed (`wss://feed.mainnet.chain.robinhood.com`) | Observe ordering / confirm inclusion (validate usefulness empirically) |
+| Router (Uniswap / Rialto) | Quotes + swaps |
+| Simulation before send | Taxes, honeypots, revert detection |
+| Separate hot wallet(s) with hard caps | Blast radius |
+
+**~50 wallets:** Legitimate uses = isolation by strategy, paper vs live, cold vs hot, venue segregation, incident containment. **Not** for evading per-wallet limits. Complexity cost: key ceremony, nonce management
