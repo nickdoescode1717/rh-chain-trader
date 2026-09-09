@@ -1,0 +1,20 @@
+{
+  "name": "rh-chain-trader",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Robinhood Chain Phase 1 research agent MVP — dashboard only, no live trading",
+  "scripts": {
+    "build": "pnpm -r run build",
+    "dev": "pnpm --parallel --filter @rh/api --filter @rh/web --filter @rh/collector run dev",
+    "test": "pnpm -r run test",
+    "lint": "pnpm -r run lint",
+    "db:migrate": "pnpm --filter @rh/db run migrate",
+    "db:seed": "pnpm --filter @rh/db run seed",
+    "db:generate": "pnpm --filter @rh/db run generate"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
