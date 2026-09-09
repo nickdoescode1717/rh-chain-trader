@@ -10,6 +10,7 @@ Robinhood brokerage listings are not evidence of deployment on the target chain.
 
 ## Reconcile the original and latest instructions
 
+- Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The existing official X API scanner needs a provider adapter and integration validation before using TwitterAPI.io. Preserve the Grok analysis/bot interfaces; do not configure credentials or enable paid collection now.
 - The original structured prompt starts with explicit approval for each buy and allows sells under rules approved in advance.
 - Nick subsequently requested automatic purchases when monitored platforms launch tokens. Automatic buying is now a target feature, with an optional manual-approval mode, not permanently out of scope.
 - Automatic buying means a previously configured policy authorizes a verified trigger within limits. An X post, a following change, an LLM score, or a newly found address cannot change that policy.

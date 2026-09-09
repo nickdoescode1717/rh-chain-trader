@@ -19,7 +19,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
 - Approval path: **Grok Bot primary**; **Telegram fallback** (same proposal payload; TG not required for MVP).
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- No X scraping. An opt-in official X API scanner exists; live access and funding are not yet validated.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis and the primary bot handoff. No direct X page scraping.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
