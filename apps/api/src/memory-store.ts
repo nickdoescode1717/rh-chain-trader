@@ -268,3 +268,9 @@ export interface MemWalletEvent {
 }
 
 export const memWalletEvents: MemWalletEvent[] = [];
+
+/** Paper purchase proposals — re-export from dedicated module. */
+export {
+  memPurchaseProposals,
+  type MemPurchaseProposal,
+} from "./purchase-proposals-mem.js";
