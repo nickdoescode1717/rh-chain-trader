@@ -9,7 +9,7 @@ Last updated: 2026-09-09
 When Desk **clears** a scored lead (CT or watched-wallet), create a **purchase proposal** rich enough for Nick to approve/reject from **phone** via:
 
 1. **Grok Bot (primary)** — same JSON payload
-2. **Telegram (fallback)** — **same JSON payload**; TG bot build is **not** in this slice — document interface only
+2. **Telegram (fallback)** — **same JSON payload**; paper AFK worker at `workers/telegram/` (dry-run default)
 
 On approve: **revalidate**, then hand off to an **isolated signer** stub. Until Nick flips live policy, everything remains paper research.
 
@@ -118,12 +118,16 @@ Before any future signer handoff (still stub), Desk/API consumers must re-check:
 
 If any check fails → do **not** hand off; leave proposal for Nick/Desk to cancel or re-propose.
 
-## Telegram fallback interface (document only — no bot build)
+## Telegram fallback — paper AFK worker
+
+**Implemented:** lean worker at `workers/telegram/` (`@rh/telegram-worker`).
 
 - **Same JSON body** as Grok approve/reject.
-- Suggested TG UX (future): bot posts proposal summary + buttons that POST to `/purchase-proposals/:id/approve|reject` with actor `telegram:<user_id>`.
-- Auth, bot token, and webhook are **out of scope**; store token only in VPS secret store when Nick opts in.
-- Until TG exists, **Grok Bot is sufficient** for MVP approvals.
+- Bot posts proposal summary + inline **Approve / Reject** → `POST /purchase-proposals/:id/approve|reject` with actor `telegram:<userId>`.
+- Default `TELEGRAM_DRY_RUN=true` (or no token) → logs only; no Bot API.
+- Store `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` **only** in VPS secret store when Nick opts in — never commit.
+- Approve still returns `signer_handoff_stub` only — **no sign / no tx**.
+- See `workers/telegram/README.md`. **Grok Bot remains primary** for in-app approvals.
 
 ## Isolated signer handoff (stub)
 
@@ -147,4 +151,4 @@ Research VPS / Desk / API **must not** implement signing here.
 - Paper proposals allowed even while `ENABLE_TRADING=false`
 - Never auto-execute on approve, expire, or channel delivery
 - Untrusted web/X cannot authorize trades
-- Skip full TG bot and walletWatcher in this slice
+- Do not modify walletWatcher in this workstream; TG worker is paper-only
