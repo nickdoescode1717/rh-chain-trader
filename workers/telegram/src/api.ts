@@ -33,6 +33,7 @@ export type Position = {
   pnlPct?: number | null;
   pnlAbs?: number | null;
   status?: string;
+  symbol?: string | null;
   [key: string]: unknown;
 };
 
@@ -56,10 +57,20 @@ export type PaperBalance = {
     size?: string;
     entryPrice?: string;
     mark?: string;
+    markSource?: string;
+    markLabel?: string;
+    unrealizedPct?: number | null;
+    unrealizedEth?: number | null;
+    unrealizedUsd?: number | null;
     pnlPct?: number | null;
   }>;
   buyWallets: BuyWallet[];
-  totals: { cashEth: string; positionsEth?: string; equityEth: string };
+  totals: {
+    cashEth: string;
+    positionsEth?: string;
+    unrealizedEth?: string;
+    equityEth: string;
+  };
   note?: string;
 };
 
