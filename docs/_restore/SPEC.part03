@@ -1,0 +1,176 @@
+XT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE positions (
+  id UUID PRIMARY KEY,
+  token_id UUID NOT NULL REFERENCES tokens(id),
+  wallet_id UUID NOT NULL REFERENCES wallets(id),
+  qty NUMERIC NOT NULL,
+  cost_basis_quote NUMERIC,
+  exit_rules JSONB NOT NULL,
+  status TEXT NOT NULL -- open|closed|stuck
+);
+
+CREATE TABLE audit_log (
+  id BIGSERIAL PRIMARY KEY,
+  at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actor TEXT NOT NULL, -- system|user|signer|executor
+  action TEXT NOT NULL,
+  payload JSONB NOT NULL
+);
+```
+
+---
+
+## 6. Scoring frameworks
+
+### 6.1 Shared outputs
+- `opportunity` 0–100  
+- `risk` 0–100 (higher = worse)  
+- `evidence_confidence` 0–100  
+- `rejected` if any **critical risk** fires (honeypot sim fail, non-transferable, hidden mint with active owner, blacklisted trading, unverifiable contract on wrong chain, etc.) regardless of opportunity.
+
+### 6.2 Meme framework (example weights — calibrate in paper)
+| Factor | Weight | Notes / gaming risk |
+|--------|--------|---------------------|
+| Attention velocity (unique credible accounts) | 20 | Bots, rented engagement |
+| Narrative freshness vs exhaustion | 15 | Late attention = exit liquidity for earlier buyers |
+| Liquidity depth & growth | 20 | Can be seeded then pulled |
+| Holder distribution / top10 | 15 | Insider clustering |
+| Sellability (sim buy+sell) | 20 | Critical |
+| Watchlist co-flow (non-clustered) | 10 | Wash / related wallets |
+
+### 6.3 Utility framework (example weights)
+| Factor | Weight | Notes |
+|--------|--------|-------|
+| Product usage evidence | 20 | Easy to fake dashboards |
+| Delivery history | 15 | Vapourware |
+| Token necessity / value capture | 15 | Often weak |
+| Float, FDV, unlocks, emissions | 15 | |
+| Verifiable fees/revenue | 10 | |
+| Competition + contract risk | 15 | |
+| Liquidity / governance | 10 | |
+
+### 6.4 Development signals (~10) — useful but weak alone
+
+| Signal | Why useful | How faked / misread |
+|--------|------------|---------------------|
+| Public GitHub commits | Delivery motion | Empty commits, copied repos |
+| Distinct contributors | Team size | Sockpuppets |
+| Docs quality + changelog | Intentionality | AI-generated docs |
+| Verified contracts | Transparency | Verify ≠ safe |
+| Staging / public API host | Engineering effort | Parked pages, no backend |
+| Subdomain sprawl | Org footprint | Cheap to create |
+| Audit PDF | Diligence theatre | Fake firms, scoped-out critical issues |
+| Testnet history | Iteration | Unrelated testnet spam |
+| Bug tracker activity | Responsiveness | Synthetic issues |
+| Dependency honesty | Maturity | Vendored malware (still: only public passive review) |
+
+**Rule:** Staging site ≠ not a rug. Always pair with on-chain sellability and liquidity controls.
+
+---
+
+## 7. Live vs hourly monitoring
+
+| Signal | Cadence | Why |
+|--------|---------|-----|
+| Factory `TokenCreated` / `PoolCreated` | **Live** (WSS logs) | Edge decays in minutes |
+| First liquidity / LP lock events | **Live** | Entry/exit feasibility |
+| Watched-wallet swaps | **Live** | Copy-trade window |
+| Large burns/mints/owner changes | **Live** | Risk |
+| Broad protocol registry refresh, docs/github scrape | **Hourly** | Slow-moving |
+| Trader performance recompute | **Daily** | Expensive |
+| Social keyword scans | **Budgeted poll** (e.g. 5–15 min) if enabled | Costly |
+
+---
+
+## 8. Execution flow (mandatory)
+
+1. Detect opportunity (filter: mcap, liquidity, age, deny lists).  
+2. Research + score; attach evidence.  
+3. Build `purchase_proposal` with verified contract, size, est. costs, slippage, exit rules, material snapshot.  
+4. **Human explicit approval** (channel with auth).  
+5. On execute: re-sim + compare snapshot deltas (price, liq, tax, owner); if material change or approval expired → **new proposal required**.  
+6. Signer signs policy-valid intent; executor submits; monitor fills.  
+7. Position monitors run **only** pre-approved sell rules; emergency exit still policy-bound.
+
+---
+
+## 9. Automated selling & controls
+
+Configurable: take-profit, stop-loss, trailing stop, time exit, emergency exit.  
+
+Acknowledge failure modes: illiquidity, transfer restrictions, RPC outages, extreme volatility, partial fills.  
+
+Controls: exposure caps, daily loss limit, stale-quote rejection, simulation, idempotent order keys, full audit log, global kill switch, per-strategy pause.
+
+---
+
+## 10. Example artifacts (FICTIONAL DATA — labeled)
+
+### 10.1 Example opportunity report (FICTIONAL)
+
+> **FICTIONAL — for format only. Not a real token.**
+
+**Token:** `MOCKA` / `0xDEAD…BEEF` (Robinhood Chain `4663`)  
+**Class:** Meme · Launchpad: Pons (fictional linkage)  
+**Observed:** 2026-09-08 21:04 ET  
+
+**Scores:** Opportunity **62** · Risk **71** · Evidence confidence **48** · **REJECTED=false** (borderline)
+
+**Why interesting**
+- 3 non-linked watchlist wallets bought within 4 minutes at est. $180k–$220k mcap (txs `0xaaa…`, `0xbbb…`, `0xccc…`).
+- Liquidity rose from $12k → $41k in 9 minutes (pairs `0xPAIR…`).
+
+**Risks**
+- Owner not renounced; `mint` present (ABI).  
+- Top 10 holders (ex LP) ≈ 38% — clustering **tentative**.  
+- Sell sim OK for 0.05 ETH equivalent; 0.5 ETH sell estimated 17% slippage.
+
+**Unknowns (explicit)**
+- Team identities: **unknown**.  
+- X account authenticity: **unverified** (no official site corroboration).  
+- Audit: **none found**.
+
+**Sources:** Blockscout token page; txs above; factory log block `52600123` (fictional).
+
+### 10.2 Example purchase-approval request (FICTIONAL)
+
+> **FICTIONAL — for format only.**
+
+```
+PROPOSAL_ID: prop_fictional_001
+CHAIN: 4663
+TOKEN: 0xDEAD…BEEF (MOCKA)
+SPEND: 0.15 ETH
+MAX_SLIPPAGE: 150 bps
+DEADLINE: 2026-09-08T22:04:00-04:00 (60 minutes)
+ROUTER: Uniswap (address TBD verified)
+EXIT_RULES:
+  - take_profit: +35%
+  - stop_loss: -20%
+  - time_exit: 6h
+  - emergency: pause_on_tax_change OR owner_mint
+MATERIAL_SNAPSHOT:
+  mid_price_eth: 0.00000042
+  liq_usd: 41000
+  buy_tax_est_bps: 0
+  sell_tax_est_bps: 0
+  owner: 0xOWN… 
+REQUIRES: explicit approve; revalidation at execution
+```
+
+---
+
+## 11. Testing plan
+
+| Risk | Test |
+|------|------|
+| Fees / gas post-subsidy | Cost model A/B with subsidized vs paid gas |
+| Token taxes | Fork sims with known tax tokens |
+| Latency / FCFS | Measure submit→inclusion distribution; no priority-fee fantasy |
+| Failed txs | Nonce stuck, OOG, revert handling |
+| Slippage | Partial fill / price move between approve and send |
+| Survivorship bias | Include delisted/rugged tokens in score backtests |
+| E
