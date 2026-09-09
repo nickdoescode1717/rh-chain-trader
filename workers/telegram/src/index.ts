@@ -21,6 +21,9 @@ import {
   formatProposal,
 } from "./format.js";
 import { createDryRunBot, createTelegramBot } from "./poll.js";
+import { isAuthorizedUpdate } from "./access.js";
+import { handleResearchInput } from "./research.js";
+import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 
 function env(name: string, fallback?: string): string | undefined {
   const v = process.env[name];
@@ -38,6 +41,7 @@ function isDryRun(): boolean {
 const API_BASE_URL = env("API_BASE_URL", "http://127.0.0.1:13001")!;
 const POLL_MS = Number(env("POLL_MS", "15000")) || 15000;
 const CHAT_ID = env("TELEGRAM_CHAT_ID");
+const OWNER_ID = env("TELEGRAM_OWNER_USER_ID");
 const TOKEN = env("TELEGRAM_BOT_TOKEN");
 const LARGE_MOVE_PCT = Number(env("LARGE_MOVE_PCT", "25")) || 25;
 const FILL_STATE_PATH =
@@ -47,6 +51,14 @@ const dry = isDryRun();
 const api = createApiClient(API_BASE_URL);
 const liveBot = dry ? null : createTelegramBot(TOKEN, false);
 const dryBot = dry ? createDryRunBot() : null;
+let pollResearch = async () => {};
+if (liveBot && CHAT_ID) {
+  try {
+    pollResearch = createResearchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!), CHAT_ID,
+      async (card) => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
+  } catch { console.warn("[telegram] research alert state unavailable; automatic research alerts disabled until restart. Commands still work."); }
+}
+let nextResearchPoll = 0;
 
 const notifiedProposals = new Set<string>();
 const alertedPositions = new Set<string>();
@@ -124,17 +136,10 @@ async function pollProposals(): Promise<void> {
 }
 
 /**
- * After TG restart / Approve via Grok: send paper fill for open positions
+ * After TG restart: send paper fill for open positions
  * whose proposalId has no recorded receipt yet. Paper only.
  */
-async function pollMissedFills(): Promise<void> {
-  let positions: Position[] | null;
-  try {
-    positions = await api.listPositions();
-  } catch (err) {
-    console.warn("[telegram] listPositions (fill catch-up) error:", err instanceof Error ? err.message : err);
-    return;
-  }
+async function pollMissedFills(positions: Position[] | null): Promise<void> {
   if (positions == null) return;
   for (const pos of positions) {
     if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
@@ -158,14 +163,7 @@ async function pollMissedFills(): Promise<void> {
   }
 }
 
-async function pollPositionsAlerts(): Promise<void> {
-  let positions;
-  try {
-    positions = await api.listPositions();
-  } catch (err) {
-    console.warn("[telegram] listPositions error:", err instanceof Error ? err.message : err);
-    return;
-  }
+async function pollPositionsAlerts(positions: Position[] | null): Promise<void> {
   if (positions == null) return;
   for (const pos of positions) {
     if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
@@ -196,7 +194,14 @@ async function processTgUpdates(): Promise<void> {
   }
   const updates = await liveBot.getUpdates(25);
   for (const u of updates) {
+    try {
+    // Gate both commands and callbacks before any backend access, including paper approvals.
+    if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
+    if (msg?.text) {
+      const card = await handleResearchInput(api, msg.text);
+      if (card) { await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue; }
+    }
     if (msg?.text && isBalanceCommand(msg.text)) {
       console.log(`[telegram] /balance from ${msg.from?.id ?? "?"}`);
       try {
@@ -222,6 +227,12 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if (cq.data.startsWith("research:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating research view…");
+      const card = await handleResearchInput(api, cq.data, true);
+      if (card) await liveBot.sendMessage(cq.message!.chat.id, card.text, card.reply_markup);
+      continue;
+    }
     const userId = cq.from?.id ?? "unknown";
     console.log(`[telegram] callback from ${userId}: ${cq.data}`);
     const result = await handleCallback(api, cq.data, userId);
@@ -251,13 +262,21 @@ async function processTgUpdates(): Promise<void> {
         /* ignore */
       }
     }
+    } catch { console.warn("[telegram] update processing failed; continuing with remaining updates"); }
   }
 }
 
 async function tick(): Promise<void> {
   await pollProposals();
-  await pollMissedFills();
-  await pollPositionsAlerts();
+  try {
+    const positions = await api.listPositions();
+    await pollMissedFills(positions);
+    await pollPositionsAlerts(positions);
+  } catch { console.warn("[telegram] position poll unavailable; will retry"); }
+  if (Date.now() >= nextResearchPoll) {
+    nextResearchPoll = Date.now() + 60_000;
+    try { await pollResearch(); } catch { console.warn("[telegram] research poll unavailable; will retry"); }
+  }
 }
 
 loadFillState();
@@ -285,11 +304,18 @@ if (dry) {
 
 await tick();
 
+// Schedule only after completion so slow API/Telegram requests never overlap the next tick.
+async function runPolling(): Promise<void> {
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    try { await tick(); } catch { console.warn("[telegram] poll failed; will retry"); }
+  }
+}
+void runPolling();
+
 if (dry) {
-  setInterval(() => { void tick(); }, POLL_MS);
   console.log("[telegram] dry-run loop active (API poll only; no Bot API)");
 } else {
-  setInterval(() => { void tick(); }, POLL_MS);
   const loop = async () => {
     for (;;) {
       try {

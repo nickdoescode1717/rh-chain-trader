@@ -3,6 +3,14 @@ import { test } from "node:test";
 import { Hono } from "hono";
 import { researchRoutes } from "../src/routes/research.js";
 const app = new Hono().route("/research", researchRoutes);
+test("monitoring accepts only an explicit boolean and never accepts trade settings", async () => {
+  for (const body of [null, [], {}, { enabled: "false" }, { enabled: true, autoBuy: true }]) {
+    const response = await app.request("/research/projects/tradedotcv/monitoring", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    assert.equal(response.status, 400);
+  }
+  const response = await app.request("/research/projects/tradedotcv/monitoring", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ enabled: false }) });
+  assert.equal(response.status, 503);
+});
 test("research endpoints report unavailable storage without fabricated reports", async () => {
   for (const path of ["projects", "projects/tradedotcv", "projects/tradedotcv/grok-handoff"]) {
     const response = await app.request(`/research/${path}`);

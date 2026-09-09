@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/*.test.ts",
     "dry-run": "TELEGRAM_DRY_RUN=true tsx src/index.ts"
   },
   "dependencies": {},

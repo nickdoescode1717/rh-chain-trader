@@ -9,6 +9,7 @@ import { desc, eq } from "drizzle-orm";
 import { auditLog, positions, purchaseProposals } from "@rh/db";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
+import { telegramDecisionError } from "../telegram-approval.js";
 import {
   memPurchaseProposals,
   type MemPurchaseProposal,
@@ -106,7 +107,7 @@ purchaseProposalRoutes.post("/", async (c) => {
     expiresAt = new Date(t);
   }
 
-  const channel = body.channel ?? "grok_primary";
+  const channel = body.channel ?? "telegram";
   const note =
     body.note ?? "PAPER_PROPOSAL_PENDING_NICK -- no auto-execute; no keys; no tx";
   const exits = (body.exits ?? null) as Record<string, unknown> | null;
@@ -192,7 +193,7 @@ async function persistPositionDb(
       openedAt: new Date(pos.openedAt),
       status: "simulated_open",
       note: pos.note ?? "PAPER simulated_open from Approve",
-      channel: "grok_primary",
+      channel: "telegram",
     });
   } catch (err) {
     console.warn(
@@ -261,7 +262,9 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
       400
     );
   }
-  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
+  const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
+  if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
+  const actor = actorBody.actor as string;
   const preferred =
     (actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null) as string | null;
   const db = getDb();
@@ -347,7 +350,9 @@ purchaseProposalRoutes.post("/:id/reject", async (c) => {
       return c.json({ error: `invalid_${field}` }, 400);
     }
   }
-  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
+  const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
+  if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
+  const actor = actorBody.actor as string;
   const db = getDb();
 
   if (!db) {

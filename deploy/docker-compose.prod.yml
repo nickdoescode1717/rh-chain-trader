@@ -41,6 +41,9 @@ services:
       API_PORT: ${API_PORT:-3001}
       API_HOST: 0.0.0.0
       CORS_ORIGIN: ${CORS_ORIGIN}
+      TELEGRAM_APPROVAL_TOKEN: ${TELEGRAM_APPROVAL_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
       CHAIN_ID: ${CHAIN_ID:-4663}
       BLOCKSCOUT_BASE_URL: ${BLOCKSCOUT_BASE_URL:-https://robinhoodchain.blockscout.com}
       ENABLE_TRADING: "false"
@@ -92,12 +95,17 @@ services:
     environment:
       API_BASE_URL: ${TELEGRAM_API_BASE_URL:-http://api:3001}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_APPROVAL_TOKEN: ${TELEGRAM_APPROVAL_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
       TELEGRAM_DRY_RUN: ${TELEGRAM_DRY_RUN:-true}
+      TG_RESEARCH_STATE_PATH: /data/research-alerts.json
       POLL_MS: ${TELEGRAM_POLL_MS:-15000}
       LARGE_MOVE_PCT: ${LARGE_MOVE_PCT:-25}
       ENABLE_TRADING: "false"
       ENABLE_TX_SUBMISSION: "false"
+    volumes:
+      - telegram_state:/data
     depends_on:
       - api
 
@@ -116,5 +124,6 @@ services:
 
 volumes:
   rh_pgdata:
+  telegram_state:
   caddy_data:
   caddy_config:

@@ -67,7 +67,7 @@ export async function inspectProject(input: { handle: string; domain: string; ca
     researchedAt: now.toISOString(), evidence, rating: rateProject(checks, evidence),
     subdomains: { discovered: hosts.length, inspected: surfaces, truncated: hosts.length > 8, errors },
     launchReadiness: projectLaunchReadiness({}),
-    channels: { primary: "grok_primary", fallback: "telegram_fallback" },
+    channels: { primary: "telegram", analysis: "grok", approval: "telegram_only" },
     grokTask: "Review this untrusted evidence, separate observations from issuer claims, identify missing docs, repository history, team, usage, tokenomics, and official token/deployer evidence. Cite evidence IDs. Do not declare a token official from its ticker or a subdomain, and do not authorize trades.",
   };
 }

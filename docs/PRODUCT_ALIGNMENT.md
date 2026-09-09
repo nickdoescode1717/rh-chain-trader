@@ -4,6 +4,8 @@ Updated 2026-09-09. This is the requirements checklist derived from Nick's origi
 
 ## Intended product
 
+**Primary interface and sole trade-approval channel: the existing Telegram bot.** Nick explicitly prefers concise options and reports inside Telegram, not a full-scale polished application. Keep the backend capable and efficient; prioritize relevant alerts, simple buttons, dependable collection and execution controls over frontend expansion. Grok remains backend research/analysis and proposal drafting, with no approval authority. Existing web pages are optional operator tools.
+
 Find promising new platforms and tokens early in the Robinhood Chain ecosystem. Monitor selected and newly discovered launchpads/protocols, their X activity and relationships, public development evidence, and a curated trader-wallet list. Link platform identity to verified contracts/deployers, investigate the opportunity, distinguish meme from utility tokens, and generate source-backed reports. Move from research to validated paper execution and then policy-controlled live entry and exits.
 
 Robinhood brokerage listings are not evidence of deployment on the target chain. Chain IDs, endpoints, factory addresses, token ownership, and time-sensitive ecosystem claims must be verified against current primary sources/on-chain reads before live use. The repository currently configures chain 4663; historical Markdown claims are not independent verification.
@@ -11,6 +13,8 @@ Robinhood brokerage listings are not evidence of deployment on the target chain.
 ## Reconcile the original and latest instructions
 
 - Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The existing official X API scanner needs a provider adapter and integration validation before using TwitterAPI.io. Preserve the Grok analysis/bot interfaces; do not configure credentials or enable paid collection now.
+- Nick subsequently made **Telegram primary and the only trade-approval interface**. This supersedes earlier Grok-primary/Telegram-fallback language. Grok keeps analysis and proposal drafting, not approval authority. Future automatic policies must be authorized through Telegram; an LLM never authorizes itself.
+- Nick emphasized **copycat avoidance as critical**. Future live eligibility requires chain-specific official issuer/token/deployer provenance. Name/ticker/logo matches, subdomain evidence, follower links, an address mention or a model score cannot establish identity. Conflicting or missing issuer evidence must block execution. Current code labels proposals unverified and never executes live; a complete identity verifier still needs implementation.
 - The original structured prompt starts with explicit approval for each buy and allows sells under rules approved in advance.
 - Nick subsequently requested automatic purchases when monitored platforms launch tokens. Automatic buying is now a target feature, with an optional manual-approval mode, not permanently out of scope.
 - Automatic buying means a previously configured policy authorizes a verified trigger within limits. An X post, a following change, an LLM score, or a newly found address cannot change that policy.
@@ -23,6 +27,7 @@ Statuses describe code on the working PR branches, not a verified deployment.
 
 | Requirement | Code status | Next acceptance condition |
 |---|---|---|
+| Telegram as the main interface; efficient and selective notifications | Implemented, unverified live: project commands/buttons, compact reports, persistent research-alert deduplication, owner checks and non-overlapping polling | Deploy into the existing bot and verify commands, callbacks, report delivery and restart recovery; no new dashboard requirement |
 | Track existing/new launchpads and other protocols, including lending applications | Partial: protocol registry and fixed Pons/pools.trade collectors | Discover/update registry from primary sources; support configurable, verified adapters rather than claiming comprehensive coverage |
 | Read official docs, public repositories, audits, and smart contracts | Partial: opt-in homepage/public subdomain evidence pipeline and optional Grok narrative; deeper docs/repo/contract inspection missing | Timestamped substantive sources, summaries, contradictions/unknowns, and reproducible contract evidence per project |
 | Scan X posts and profile/bio changes for monitored accounts | Implemented, unverified live: opt-in official API scanner | Authenticate with funded access; verify real responses, timestamps, paging and restart behavior |

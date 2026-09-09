@@ -17,9 +17,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Meme ≠ utility** scoring frameworks.
 - **Paper only** until Nick flips policy: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`.
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
-- Approval path: **Grok Bot primary**; **Telegram fallback** (same proposal payload; TG not required for MVP).
+- **Telegram is the primary user interface and the ONLY trade-approval channel** (Nick, 2026-09-09): concise research/options, watch controls, proposal decisions and position updates through the existing bot. Grok provides analysis and may draft proposals; it cannot approve/reject trades. Prioritize backend quality and efficiency. The web dashboard is optional administration; do not expand/polish it without a new request.
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis and the primary bot handoff. No direct X page scraping.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
+- **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. Current paper proposals remain explicitly identity-unverified; automatic identity verification is still missing.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
@@ -40,6 +41,12 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**Telegram interface branch (2026-09-09)**
+- Added `/help`, `/projects`, `/watch`, `/research`, `/pause`, `/resume` and inline project controls in the existing bot. A monitoring API updates project and X enablement together without clearing reports or resetting the paid research schedule.
+- Automatic research cards notify on the first report and changed rating/coverage/checks, subdomain status, mentioned address set or launch blockers. Timestamp-only/prose-only changes are suppressed; restart deduplication is stored on a Compose volume. Single Telegram worker replica; delivery can duplicate after an uncertain send/crash before state persistence.
+- Commands and callbacks require the configured chat and owner. Private chats infer the owner; groups require `TELEGRAM_OWNER_USER_ID`. Polls do not overlap, position data is fetched once per tick, research detail reads are capped at five per minute. New bot code is not deployed or verified against live Telegram yet.
+- Approve/reject APIs require the owner actor plus `TELEGRAM_APPROVAL_TOKEN` (separate service credential shared only by API and Telegram; no collector/Grok access). Missing configuration blocks decisions. Existing Grok approval calls are intentionally rejected; Grok research/drafting remains. Configure this during coordinated API/bot deployment.
 
 **Prelaunch project research branch (2026-09-09)**
 - Migration 0007 registers Nick's `tradedotcv` example. Opt-in public homepage/passive subdomain collector, ten-category evidence rubric, optional xAI Grok narrative, `/research/projects` APIs, Grok research handoff and Project research dashboard are implemented; see `docs/PRELAUNCH_RESEARCH.md`.
@@ -77,7 +84,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 3. Public docs/repos/subdomains + evidence-backed meme/utility scoring and reports.
 4. Policy-controlled paper entry/exit, durable limits, accounting and restart/failure validation.
 5. Isolated live signer/adapters after the user's spend limits, mode and exit policy are specified.
-6. Keep Grok primary and Telegram fallback interfaces compatible with the resulting reports/policy.
+6. Make the existing Telegram bot the primary interface and sole approval channel; preserve Grok backend analysis and research/draft handoffs.
 
 ### Next / tools
 - Opt-in live Telegram long-poll on VPS (`TELEGRAM_DRY_RUN=false` + bot token in secret store only); keep paper-only — no live sells

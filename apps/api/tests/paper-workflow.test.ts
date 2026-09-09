@@ -13,19 +13,44 @@ app.route("/positions", positionRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
 const tokenCA = `0x${"1".repeat(40)}`;
 const originalCash = process.env.PAPER_CASH_ETH;
+const testApprovalToken = "test-only-telegram-service-secret-0000000000000000";
+const originalApprovalEnv = Object.fromEntries(["TELEGRAM_APPROVAL_TOKEN", "TELEGRAM_CHAT_ID", "TELEGRAM_OWNER_USER_ID"].map((key) => [key, process.env[key]]));
 afterEach(() => {
   if (originalCash === undefined) delete process.env.PAPER_CASH_ETH;
   else process.env.PAPER_CASH_ETH = originalCash;
+  for (const [key, value] of Object.entries(originalApprovalEnv)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
 });
 const post = (path: string, body: unknown) => app.request(path, {
-  method: "POST", headers: { "content-type": "application/json" },
-  body: JSON.stringify(body),
+  method: "POST", headers: { "content-type": "application/json",
+    ...(/\/(approve|reject)$/.test(path) ? { "x-telegram-approval-token": testApprovalToken } : {}) },
+  body: JSON.stringify(/\/(approve|reject)$/.test(path) && body && typeof body === "object" && !Array.isArray(body) ? { actor: "telegram:42", ...body } : body),
 });
 
 beforeEach(() => {
   memPurchaseProposals.length = 0;
   memPaperPositions.length = 0;
   process.env.PAPER_CASH_ETH = "1";
+  process.env.TELEGRAM_APPROVAL_TOKEN = testApprovalToken;
+  process.env.TELEGRAM_CHAT_ID = "42";
+  process.env.TELEGRAM_OWNER_USER_ID = "42";
+});
+
+test("Grok, wrong owners and forged Telegram labels cannot approve or reject proposals", async () => {
+  const created = await post("/purchase-proposals", { tokenCA, sizeEth: 0.1, scores: { identityVerified: true } });
+  const { data } = await created.json();
+  assert.equal(data.approvalChannel, "telegram_only"); assert.equal(data.issuerIdentity.status, "unverified");
+  for (const action of ["approve", "reject"]) {
+    const url = `/purchase-proposals/${data.id}/${action}`;
+    for (const [token, actor] of [[undefined, "telegram:42"], ["wrong-secret", "telegram:42"], [testApprovalToken, "grok"], [testApprovalToken, "telegram:43"]]) {
+      const response = await app.request(url, { method: "POST", headers: { "content-type": "application/json", ...(token ? { "x-telegram-approval-token": token } : {}) }, body: JSON.stringify({ actor }) });
+      assert.equal(response.status, 403); assert.equal(memPurchaseProposals[0].status, "pending_nick"); assert.equal(memPaperPositions.length, 0);
+    }
+  }
+  delete process.env.TELEGRAM_APPROVAL_TOKEN;
+  assert.equal((await post(`/purchase-proposals/${data.id}/approve`, {})).status, 503);
+  assert.equal(memPurchaseProposals[0].status, "pending_nick");
 });
 
 test("rejects invalid and ambiguous proposal amounts without creating a proposal", async () => {

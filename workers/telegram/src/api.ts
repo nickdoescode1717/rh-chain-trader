@@ -84,6 +84,24 @@ export type ApiClient = {
   listPositions: () => Promise<Position[] | null>;
   sellPosition: (positionId: string, actor: string) => Promise<unknown>;
   getPaperBalance: () => Promise<PaperBalance>;
+  listResearchProjects: () => Promise<ResearchProject[]>;
+  getResearchProject: (handle: string) => Promise<ResearchProject>;
+  watchProject: (project: { handle: string; domain: string; category: string }) => Promise<ResearchProject>;
+  setProjectMonitoring: (handle: string, enabled: boolean) => Promise<ResearchProject>;
+};
+
+export type ResearchReport = {
+  researchedAt: string;
+  rating: { rating10: number | null; evidenceCoveragePct: number; supportedEvidencePoints: number;
+    checks: { id: string; label: string; status: string }[] };
+  subdomains: { discovered: number; errors: string[]; inspected: { host: string; status: number | null }[] };
+  launchReadiness: { blockers: string[] };
+  evidence: { id: string; url: string; kind: string; finding: string }[];
+  grok?: { status: string; analysis: { summary: string; concerns: string[]; missingEvidence: string[] } | null };
+};
+export type ResearchProject = {
+  id: string; handle: string; domain: string; category: string; enabled: boolean;
+  lastResearchedAt: string | null; lastError: string | null; report?: ResearchReport | null;
 };
 
 function joinUrl(base: string, path: string): string {
@@ -95,6 +113,8 @@ async function jsonFetch(
   init?: RequestInit
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(15_000),
+    redirect: "error",
     ...init,
     headers: {
       Accept: "application/json",
@@ -114,9 +134,25 @@ async function jsonFetch(
   return { ok: res.ok, status: res.status, body };
 }
 
-export function createApiClient(baseUrl: string): ApiClient {
+export function createApiClient(baseUrl: string, approvalToken = process.env.TELEGRAM_APPROVAL_TOKEN): ApiClient {
+  function decisionHeaders(): Record<string, string> {
+    if (!approvalToken || approvalToken.length < 32) throw new Error("Telegram approval credential is not configured on the worker.");
+    return { "x-telegram-approval-token": approvalToken };
+  }
+  async function research<T>(path: string, body?: unknown): Promise<T> {
+    const result = await jsonFetch(joinUrl(baseUrl, `/research/${path}`), body === undefined ? undefined : {
+      method: "POST", body: JSON.stringify(body),
+    });
+    if (!result.ok) throw new Error(`research_http_${result.status}`);
+    if (!result.body || typeof result.body !== "object" || !("data" in result.body)) throw new Error("invalid_research_response");
+    return (result.body as { data: T }).data;
+  }
   return {
     baseUrl,
+    listResearchProjects: () => research<ResearchProject[]>("projects"),
+    getResearchProject: (handle) => research<ResearchProject>(`projects/${encodeURIComponent(handle)}`),
+    watchProject: (project) => research<ResearchProject>("projects", project),
+    setProjectMonitoring: (handle, enabled) => research<ResearchProject>(`projects/${encodeURIComponent(handle)}/monitoring`, { enabled }),
 
     async listProposals() {
       const { ok, status, body } = await jsonFetch(
@@ -130,7 +166,7 @@ export function createApiClient(baseUrl: string): ApiClient {
     async approveProposal(id, actor) {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/purchase-proposals/${encodeURIComponent(id)}/approve`),
-        { method: "POST", body: JSON.stringify({ actor }) }
+        { method: "POST", headers: decisionHeaders(), body: JSON.stringify({ actor }) }
       );
       if (!ok) {
         throw new Error(`approveProposal failed: HTTP ${status} ${JSON.stringify(body)}`);
@@ -141,7 +177,7 @@ export function createApiClient(baseUrl: string): ApiClient {
     async rejectProposal(id, actor, reason) {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/purchase-proposals/${encodeURIComponent(id)}/reject`),
-        { method: "POST", body: JSON.stringify({ actor, reason: reason ?? undefined }) }
+        { method: "POST", headers: decisionHeaders(), body: JSON.stringify({ actor, reason: reason ?? undefined }) }
       );
       if (!ok) {
         throw new Error(`rejectProposal failed: HTTP ${status} ${JSON.stringify(body)}`);

@@ -65,6 +65,7 @@ app.get("/", (c) =>
       "/research/projects",
       "/research/projects/:handle",
       "/research/projects/:handle/grok-handoff",
+      "/research/projects/:handle/monitoring",
     ],
   })
 );

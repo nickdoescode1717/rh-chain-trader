@@ -59,6 +59,7 @@ export function formatProposal(p: Proposal): FormattedMessage {
   const lines = [
     `${rating.line} · $${symbol} · 4663 · 📄 PAPER`,
     `CA: ${ca}`,
+    "IDENTITY UNVERIFIED · Names, tickers and high scores do not prove this is the official token.",
     `Mcap: ${market.mcapLine}`,
     "━━━━━━━━━━━━━━━━━━━━",
     section("TOKEN", "🪙"),
@@ -98,7 +99,7 @@ export function formatProposal(p: Proposal): FormattedMessage {
     `Route/pair: ${route}`,
     "",
     section("ASK", "✅"),
-    "Approve (paper) or Skip. No keys. No live tx.",
+    "Decide in Telegram: Approve (paper) or Skip. No live tx. Grok provides analysis only.",
   ].filter((x) => x != null) as string[];
 
   return {

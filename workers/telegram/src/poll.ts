@@ -52,6 +52,8 @@ export function createTelegramBot(
       const url = `${TG_API}/bot${token}/${method}`;
       const res = await fetch(url, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(method === "getUpdates" ? 35_000 : 15_000),
         headers: { "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -85,6 +87,7 @@ export function createTelegramBot(
         chat_id: chatId,
         text,
         reply_markup: replyMarkup,
+        link_preview_options: { is_disabled: true },
       });
     },
 

@@ -8,8 +8,8 @@ Last updated: 2026-09-09
 
 When Desk **clears** a scored lead (CT or watched-wallet), create a **purchase proposal** rich enough for Nick to approve/reject from **phone** via:
 
-1. **Grok Bot (primary)** — same JSON payload
-2. **Telegram (fallback)** — **same JSON payload**; paper AFK worker at `workers/telegram/` (dry-run default)
+1. **Telegram (primary)** — paper AFK worker at `workers/telegram/` (dry-run default)
+Grok may research and draft the same proposal JSON, but **cannot approve or reject it**. Telegram is the only decision channel.
 
 On approve: **revalidate**, then hand off to an **isolated signer** stub. Until Nick flips live policy, everything remains paper research.
 
@@ -29,7 +29,7 @@ On approve: **revalidate**, then hand off to an **isolated signer** stub. Until 
 
 ```
 Desk clear → create pending_nick
-           → Nick approve (Grok primary | TG fallback, same JSON)
+           → Nick approve (authenticated Telegram owner only)
                 → revalidate checklist
                 → next: signer_handoff_stub (out of scope; no keys / no tx)
                 → paper until ENABLE_TRADING flipped by Nick
@@ -40,7 +40,9 @@ Desk clear → create pending_nick
 
 ## Phone-ready payload (canonical JSON)
 
-Same shape for Grok primary and Telegram fallback.
+Same research/draft shape for Telegram and Grok. Historical `grok_primary` labels may exist on old records, but provide no decision authority. Approve/reject require `x-telegram-approval-token` matching the API's `TELEGRAM_APPROVAL_TOKEN` plus `actor: telegram:<configured owner id>`. The same service secret must be configured only on the API and Telegram worker. Missing/short credentials or missing owner configuration return 503; unauthorized decisions return 403. Do not give this credential to the collector, Grok or a browser.
+
+Paper proposal payloads explicitly report unverified issuer identity regardless of supplied model scores. Paper approval only simulates a position. Live copycat prevention still requires exact chain/address linkage to official issuer evidence and deployment/deployer checks; names/tickers/subdomains are insufficient.
 
 ```json
 {
@@ -70,8 +72,8 @@ Same shape for Grok primary and Telegram fallback.
   "rationale": "Clear: …",
   "expiresAt": "2026-09-09T12:00:00.000Z",
   "channels": {
-    "primary": "grok_primary",
-    "fallback": "telegram_fallback"
+    "primary": "telegram",
+    "analysis": "grok"
   },
   "status": "pending_nick"
 }
@@ -88,7 +90,7 @@ Same shape for Grok primary and Telegram fallback.
 | `exits` | `tp` / `sl` / `trail` / `time` (names flexible in JSON; store as jsonb) |
 | `scores.framework` | `meme` \| `utility` (separate frameworks — never conflate) |
 | `leadSource` | `ct` \| `watched_wallet` |
-| `channels` | Documented routing: Grok primary, TG fallback — **same JSON** |
+| `channels` | Telegram is primary; Grok provides analysis. Decisions additionally require authenticated Telegram-owner access. |
 | `expiresAt` | ISO timestamptz; past → treat as `expired` |
 
 ## API (paper)
@@ -118,16 +120,16 @@ Before any future signer handoff (still stub), Desk/API consumers must re-check:
 
 If any check fails → do **not** hand off; leave proposal for Nick/Desk to cancel or re-propose.
 
-## Telegram fallback — paper AFK worker
+## Telegram approvals — paper AFK worker
 
 **Implemented:** lean worker at `workers/telegram/` (`@rh/telegram-worker`).
 
-- **Same JSON body** as Grok approve/reject.
-- Bot posts proposal summary + inline **Approve / Reject** → `POST /purchase-proposals/:id/approve|reject` with actor `telegram:<userId>`.
+- Grok may draft a proposal; only the authenticated Telegram owner can decide.
+- Bot posts proposal summary + inline **Approve / Skip** → `POST /purchase-proposals/:id/approve|reject` with actor `telegram:<userId>` and the worker-only service credential.
 - Default `TELEGRAM_DRY_RUN=true` (or no token) → logs only; no Bot API.
 - Store `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` **only** in VPS secret store when Nick opts in — never commit.
 - Approve still returns `signer_handoff_stub` only — **no sign / no tx**.
-- See `workers/telegram/README.md`. **Grok Bot remains primary** for in-app approvals.
+- See `workers/telegram/README.md`. **Telegram is the only approval interface.**
 
 ## Isolated signer handoff (stub)
 
