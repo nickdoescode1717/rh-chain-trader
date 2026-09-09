@@ -152,3 +152,17 @@ Research VPS / Desk / API **must not** implement signing here.
 - Never auto-execute on approve, expire, or channel delivery
 - Untrusted web/X cannot authorize trades
 - Do not modify walletWatcher in this workstream; TG worker is paper-only
+
+
+## Isolated signer handoff (expanded)
+
+Canonical design: **`docs/ISOLATED_SIGNER.md`** + **`docs/BUY_WALLETS.md`**.
+
+Approve response now includes `signerHandoff` (paper stub):
+
+- `keyModel`: `single_controlling_key_multi_address`
+- `buyAddress` / `buyAddressCandidates` from `/buy-wallets` registry (public addresses only)
+- `signed: false`, `txSubmitted: false`, `enableTrading: false`
+- Create/approve reject any `privateKey` / `key` / `mnemonic` / `seed` fields
+
+Research API never calls a live signer. Empty buy-wallet registry → `buyAddress: null` (OK for paper).
