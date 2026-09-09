@@ -11,6 +11,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./packages/db/drizzle/0000_init.sql:/docker-entrypoint-initdb.d/0000_init.sql:ro
       - ./packages/db/drizzle/0001_seed_fictional.sql:/docker-entrypoint-initdb.d/0001_seed_fictional.sql:ro
+      - ./packages/db/drizzle/0002_verify_factories.sql:/docker-entrypoint-initdb.d/0002_verify_factories.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rh_research} -d ${POSTGRES_DB:-rh_chain}"]
       interval: 5s
@@ -45,6 +46,9 @@ services:
       CHAIN_ID: "4663"
       BLOCKSCOUT_BASE_URL: https://robinhoodchain.blockscout.com
       RPC_URL: ${RPC_URL:-}
+      COLLECTOR_POLL_MS: ${COLLECTOR_POLL_MS:-15000}
+      LOG_BLOCK_WINDOW: ${LOG_BLOCK_WINDOW:-2000}
+      COLLECTOR_LOOKBACK_BLOCKS: ${COLLECTOR_LOOKBACK_BLOCKS:-5000}
       ENABLE_TRADING: "false"
       ENABLE_TX_SUBMISSION: "false"
     depends_on:
