@@ -1,6 +1,8 @@
 /**
  * Nick buy/funding wallets registry — NOT watched alphas.
- * Paper-safe: addresses only, no private keys. RH Chain 4663.
+ * Paper-safe: public addresses only. No private keys.
+ * Architecture: ONE controlling key (isolated signer later) → many addresses here.
+ * RH Chain 4663. See docs/BUY_WALLETS.md.
  */
 import { Hono } from "hono";
 
@@ -13,7 +15,7 @@ export type BuyWalletRow = {
   createdAt: string;
 };
 
-/** In-memory until Nick pastes real buy wallets / DB table lands */
+/** In-memory until Nick registers real buy addresses / DB table lands */
 export const memBuyWallets: BuyWalletRow[] = [];
 
 const ADDR_RE = /^0x[0-9a-f]{40}$/;
@@ -29,7 +31,9 @@ buyWalletRoutes.get("/", (c) => {
   return c.json({
     data: memBuyWallets,
     paperOnly: true,
-    note: "Buy/funding wallets for Nick trading stack — excludes watched alphas. Empty until registered.",
+    keyModel: "single_controlling_key_multi_address",
+    note:
+      "Buy/funding addresses only — one key in isolated signer later; never stored here. Excludes watched alphas.",
   });
 });
 
@@ -38,8 +42,20 @@ buyWalletRoutes.post("/", async (c) => {
     address?: string;
     label?: string;
     kind?: string;
+    privateKey?: unknown;
+    key?: unknown;
   } | null;
   if (!body?.address) return c.json({ error: "address_required" }, 400);
+  // Refuse any key-shaped fields — addresses only
+  if (body.privateKey != null || body.key != null) {
+    return c.json(
+      {
+        error: "keys_not_accepted",
+        hint: "Register public addresses only. Key stays in isolated signer.",
+      },
+      400
+    );
+  }
   const address = normalizeAddress(body.address);
   if (!address) return c.json({ error: "invalid_address" }, 400);
   if (memBuyWallets.some((w) => w.address === address)) {
@@ -60,7 +76,7 @@ buyWalletRoutes.post("/", async (c) => {
       data: row,
       paperOnly: true,
       signed: false,
-      note: "Address registered for read-only balance later. No keys stored.",
+      note: "Address registered for read-only balance. No keys stored. Single-key multi-address model.",
     },
     201
   );
