@@ -32,7 +32,13 @@ export type Position = {
   entryPrice?: string | null;
   currentPrice?: string | null;
   pnlPct?: number | null;
-  pnlAbs?: number | null;
+  pnlAbs?: number | string | null;
+  markSource?: string;
+  openedAt?: string | null;
+  valuationStatus?: string;
+  unrealizedPnl?: number | null;
+  pnlCurrency?: string | null;
+  currentValue?: number | null;
   status?: string;
   symbol?: string | null;
   proposalId?: string | null;
@@ -50,6 +56,7 @@ export type BuyWallet = {
 
 export type PaperBalance = {
   paperOnly: true;
+  valuationComplete?: boolean;
   cashEth: string;
   equityEth: string;
   positions: Array<{

@@ -3,8 +3,8 @@
  * Paper only. No keys. No live sells. Shared with /paper-balance.
  * Hydrates open rows from postgres after API restart (no re-debit).
  */
-import { inArray } from "drizzle-orm";
-import { positions } from "@rh/db";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { positions, purchaseProposals, tokens } from "@rh/db";
 import { getDb } from "./db.js";
 import { decimalText } from "./validation.js";
 
@@ -68,6 +68,11 @@ function symbolFromScores(scores: unknown): string | null {
 
 /** Phone-ready position payload (GET /positions + Approve response). */
 export function toPositionPayload(p: MemPaperPosition) {
+  const u = computeUnrealized(p);
+  const size = /^(eth|usd):(.+)$/.exec(p.size ?? "");
+  const cost = size ? Number(size[2]) : NaN;
+  const valuationStatus = !p.entryPrice ? "entry_missing" : p.markSource === "stub_entry" ? "placeholder" : u.unrealizedPct == null ? "price_missing" : "recorded_mark";
+  const pnl = valuationStatus === "recorded_mark" && Number.isFinite(cost) && cost > 0 && u.unrealizedPct != null ? cost * u.unrealizedPct / 100 : null;
   return {
     id: p.id,
     tokenCA: p.tokenAddress,
@@ -79,6 +84,10 @@ export function toPositionPayload(p: MemPaperPosition) {
     markSource: p.markSource,
     pnlAbs: p.pnlAbs,
     pnlPct: p.pnlPct,
+    valuationStatus,
+    unrealizedPnl: pnl != null && Number.isFinite(pnl) ? pnl : null,
+    pnlCurrency: size?.[1].toUpperCase() ?? null,
+    currentValue: pnl != null && Number.isFinite(cost + pnl) ? cost + pnl : null,
     status: p.status,
     proposalId: p.proposalId,
     symbol: p.symbol,
@@ -249,6 +258,7 @@ type DbPositionRow = {
   openedAt: Date | null;
   closedAt: Date | null;
   note: string | null;
+  symbol?: string | null;
 };
 
 /** Map a postgres positions row → MemPaperPosition (no cash side-effects). */
@@ -271,7 +281,7 @@ export function dbRowToMem(row: DbPositionRow): MemPaperPosition {
     pnlPct: row.pnlPct,
     status: row.status,
     proposalId: row.proposalId,
-    symbol: null,
+    symbol: row.symbol ?? null,
     openedAt: row.openedAt ? row.openedAt.toISOString() : new Date().toISOString(),
     closedAt: row.closedAt ? row.closedAt.toISOString() : null,
     note: row.note,
@@ -288,8 +298,10 @@ export async function hydrateOpenFromDb(): Promise<void> {
   if (!db) return;
   try {
     const rows = await db
-      .select()
+      .select({ position: positions, tokenSymbol: tokens.symbol, proposalScores: purchaseProposals.scores })
       .from(positions)
+      .leftJoin(tokens, and(eq(tokens.chainId, 4663), sql`lower(${tokens.address}) = lower(${positions.tokenAddress})`))
+      .leftJoin(purchaseProposals, eq(purchaseProposals.id, positions.proposalId))
       .where(inArray(positions.status, ["simulated_open", "alert_fired"]));
     const memIds = new Set(memPaperPositions.map((p) => p.id));
     const memProposalIds = new Set(
@@ -297,10 +309,16 @@ export async function hydrateOpenFromDb(): Promise<void> {
         .map((p) => p.proposalId)
         .filter((x): x is string => !!x)
     );
-    for (const row of rows) {
-      if (memIds.has(row.id)) continue;
+    for (const joined of rows) {
+      const row = joined.position;
+      const symbol = joined.tokenSymbol || symbolFromScores(joined.proposalScores);
+      if (memIds.has(row.id)) {
+        const existing = memPaperPositions.find((p) => p.id === row.id);
+        if (existing && !existing.symbol && symbol) existing.symbol = symbol;
+        continue;
+      }
       if (row.proposalId && memProposalIds.has(row.proposalId)) continue;
-      const mem = dbRowToMem(row);
+      const mem = dbRowToMem({ ...row, symbol });
       memPaperPositions.unshift(mem);
       memIds.add(mem.id);
       if (mem.proposalId) memProposalIds.add(mem.proposalId);

@@ -27,7 +27,7 @@ paperBalanceRoutes.get("/", async (c) => {
 
   const positions = open.map((p) => {
     const u = computeUnrealized(p);
-    if (u.unrealizedEth == null) incompleteMarks = true;
+    if (u.unrealizedEth == null || p.markSource === "stub_entry") incompleteMarks = true;
     else unrealizedSum += u.unrealizedEth;
     return {
       id: p.id,

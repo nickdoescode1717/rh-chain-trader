@@ -74,7 +74,7 @@ export async function handleBalanceCommand(
   api: ApiClient,
   chatId: number | string,
   configuredChatId: string | undefined,
-  send: (chatId: number | string, text: string) => Promise<unknown>
+  send: (chatId: number | string, text: string, replyMarkup?: unknown) => Promise<unknown>
 ): Promise<void> {
   if (configuredChatId && String(chatId) !== String(configuredChatId)) {
     console.log(`[telegram] /balance ignored — chat ${chatId} != configured`);
@@ -83,14 +83,11 @@ export async function handleBalanceCommand(
   try {
     const bal = await api.getPaperBalance();
     const msg = formatBalance(bal);
-    await send(chatId, msg.text);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    await send(chatId, msg.text, msg.reply_markup);
+  } catch {
     await send(
       chatId,
-      "—— PAPER BALANCE ——\nUnavailable: " +
-        detail +
-        "\n(API /paper-balance). Watched alphas never included. PAPER ONLY."
+      "Balance unavailable right now. Try /balance again shortly."
     );
   }
 }
@@ -99,7 +96,7 @@ export async function handlePositionsCommand(
   api: ApiClient,
   chatId: number | string,
   configuredChatId: string | undefined,
-  send: (chatId: number | string, text: string) => Promise<unknown>
+  send: (chatId: number | string, text: string, replyMarkup?: unknown) => Promise<unknown>
 ): Promise<void> {
   if (configuredChatId && String(chatId) !== String(configuredChatId)) {
     console.log(`[telegram] /positions ignored — chat ${chatId} != configured`);
@@ -108,16 +105,15 @@ export async function handlePositionsCommand(
   try {
     const positions = await api.listPositions();
     if (positions == null) {
-      await send(chatId, "—— PAPER POSITIONS ——\nAPI returned 403/404 — redeploy api with GET /positions.");
+      await send(chatId, "Positions unavailable right now. Try /positions again shortly.");
       return;
     }
     const msg = formatPositionsList(positions);
-    await send(chatId, msg.text);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    await send(chatId, msg.text, msg.reply_markup);
+  } catch {
     await send(
       chatId,
-      "—— PAPER POSITIONS ——\nUnavailable: " + detail + "\nPAPER ONLY."
+      "Positions unavailable right now. Try /positions again shortly."
     );
   }
 }

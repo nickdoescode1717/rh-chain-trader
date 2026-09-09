@@ -23,6 +23,7 @@ import {
 import { createDryRunBot, createTelegramBot } from "./poll.js";
 import { isAuthorizedUpdate } from "./access.js";
 import { handleResearchInput } from "./research.js";
+import { handlePortfolioCallback } from "./portfolio.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 
 function env(name: string, fallback?: string): string | undefined {
@@ -205,8 +206,8 @@ async function processTgUpdates(): Promise<void> {
     if (msg?.text && isBalanceCommand(msg.text)) {
       console.log(`[telegram] /balance from ${msg.from?.id ?? "?"}`);
       try {
-        await handleBalanceCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
-          liveBot.sendMessage(id, text)
+        await handleBalanceCommand(api, msg.chat.id, CHAT_ID, (id, text, keyboard) =>
+          liveBot.sendMessage(id, text, keyboard)
         );
       } catch (err) {
         console.warn("[telegram] /balance failed:", err instanceof Error ? err.message : err);
@@ -216,8 +217,8 @@ async function processTgUpdates(): Promise<void> {
     if (msg?.text && isPositionsCommand(msg.text)) {
       console.log(`[telegram] /positions from ${msg.from?.id ?? "?"}`);
       try {
-        await handlePositionsCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
-          liveBot.sendMessage(id, text)
+        await handlePositionsCommand(api, msg.chat.id, CHAT_ID, (id, text, keyboard) =>
+          liveBot.sendMessage(id, text, keyboard)
         );
       } catch (err) {
         console.warn("[telegram] /positions failed:", err instanceof Error ? err.message : err);
@@ -227,10 +228,16 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if (cq.data.startsWith("portfolio:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating portfolio…");
+      const card = await handlePortfolioCallback(api, cq.data);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
     if (cq.data.startsWith("research:")) {
       await liveBot.answerCallbackQuery(cq.id, "Updating research view…");
       const card = await handleResearchInput(api, cq.data, true);
-      if (card) await liveBot.sendMessage(cq.message!.chat.id, card.text, card.reply_markup);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
       continue;
     }
     const userId = cq.from?.id ?? "unknown";

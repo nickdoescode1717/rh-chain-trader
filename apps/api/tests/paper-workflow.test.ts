@@ -5,7 +5,7 @@ import { purchaseProposalRoutes } from "../src/routes/purchase-proposals.js";
 import { positionRoutes } from "../src/routes/positions.js";
 import { paperBalanceRoutes } from "../src/routes/paper-balance.js";
 import { memPurchaseProposals } from "../src/purchase-proposals-mem.js";
-import { memPaperPositions } from "../src/paper-positions-mem.js";
+import { dbRowToMem, memPaperPositions, openPaperFromProposal, toPositionPayload } from "../src/paper-positions-mem.js";
 
 const app = new Hono();
 app.route("/purchase-proposals", purchaseProposalRoutes);
@@ -35,6 +35,29 @@ beforeEach(() => {
   process.env.TELEGRAM_APPROVAL_TOKEN = testApprovalToken;
   process.env.TELEGRAM_CHAT_ID = "42";
   process.env.TELEGRAM_OWNER_USER_ID = "42";
+});
+
+test("position payload recalculates P&L without first reading the balance and retains currency", () => {
+  const p = openPaperFromProposal({ id: "test-pnl", tokenAddress: tokenCA, size: "usd:100", scores: { symbol: "EXAMPLE", entryPrice: "2" } });
+  assert.equal(toPositionPayload(p).valuationStatus, "placeholder");
+  assert.equal(toPositionPayload(p).unrealizedPnl, null);
+  p.currentPrice = "1"; p.markSource = "manual";
+  const result = toPositionPayload(p);
+  assert.equal(result.pnlPct, -50); assert.equal(result.unrealizedPnl, -50);
+  assert.equal(result.pnlCurrency, "USD"); assert.equal(result.currentValue, 50);
+  p.currentPrice = "0";
+  assert.equal(toPositionPayload(p).unrealizedPnl, -100);
+});
+
+test("hydrated token labels survive mapping and more than 40 open positions remain visible", async () => {
+  for (let i = 0; i < 45; i++) {
+    const row = dbRowToMem({ id: `holding-${i}`, tokenAddress: tokenCA, size: "eth:0.001", entryPrice: null, currentPrice: null,
+      pnlAbs: null, pnlPct: null, status: i % 2 ? "alert_fired" : "simulated_open", proposalId: null, openedAt: new Date(), closedAt: null, note: null, symbol: "RESTORED" });
+    memPaperPositions.push(row);
+  }
+  const { data } = await (await app.request("/positions")).json();
+  assert.equal(data.length, 45);
+  assert.ok(data.every((p: { symbol: string; valuationStatus: string }) => p.symbol === "RESTORED" && p.valuationStatus === "entry_missing"));
 });
 
 test("Grok, wrong owners and forged Telegram labels cannot approve or reject proposals", async () => {

@@ -25,14 +25,14 @@ function recentMem(limit = 40): MemPaperPosition[] {
   const closedish = memPaperPositions.filter(
     (p) => p.status !== "simulated_open" && p.status !== "alert_fired"
   );
-  const merged = [...open, ...closedish];
+  // Never truncate open holdings. Telegram paginates; only recent closed rows are capped.
+  const merged = [...open, ...closedish.slice(0, Math.max(0, limit - open.length))];
   const seen = new Set<string>();
   const out: MemPaperPosition[] = [];
   for (const p of merged) {
     if (seen.has(p.id)) continue;
     seen.add(p.id);
     out.push(p);
-    if (out.length >= limit) break;
   }
   return out;
 }
