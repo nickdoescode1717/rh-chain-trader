@@ -1,14 +1,16 @@
 /**
  * Paper positions routes — list simulated_open + recent; sell stub only.
  * Never live sells. No keys. ENABLE_TRADING stays false.
+ * Hydrates opens from postgres after API restart.
  * See docs/POSITIONS.md
  */
 import { Hono } from "hono";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { positions } from "@rh/db";
 import { getDb } from "../db.js";
 import {
   getOpenPositions,
+  hydrateOpenFromDb,
   memPaperPositions,
   setPaperMark,
   toPositionPayload,
@@ -20,7 +22,7 @@ export const positionRoutes = new Hono();
 function recentMem(limit = 40): MemPaperPosition[] {
   const open = getOpenPositions();
   const closedish = memPaperPositions.filter(
-    (p) => p.status !== "simulated_open"
+    (p) => p.status !== "simulated_open" && p.status !== "alert_fired"
   );
   const merged = [...open, ...closedish];
   const seen = new Set<string>();
@@ -35,6 +37,7 @@ function recentMem(limit = 40): MemPaperPosition[] {
 }
 
 positionRoutes.get("/", async (c) => {
+  await hydrateOpenFromDb();
   const memRows = recentMem().map(toPositionPayload);
   const db = getDb();
   if (!db) {
@@ -60,7 +63,11 @@ positionRoutes.get("/", async (c) => {
       size: r.size,
       entryPrice: r.entryPrice,
       currentPrice: r.currentPrice,
-      markSource: r.currentPrice ? ("manual" as const) : ("oracle_pending" as const),
+      markSource: r.currentPrice
+        ? r.entryPrice && r.currentPrice === r.entryPrice
+          ? ("stub_entry" as const)
+          : ("manual" as const)
+        : ("oracle_pending" as const),
       pnlAbs: r.pnlAbs,
       pnlPct: r.pnlPct,
       status: r.status,
@@ -102,6 +109,7 @@ positionRoutes.get("/", async (c) => {
 /**
  * Set paper mark for unrealized PnL testing. Paper only — reject keys.
  * Body: { mark: string }. Optional source defaults to manual.
+ * Best-effort mirrors mark to postgres current_price when DB present.
  */
 positionRoutes.post("/:id/paper-mark", async (c) => {
   const id = c.req.param("id");
@@ -153,6 +161,9 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
   const source: "manual" | "stub_entry" =
     sourceRaw === "stub_entry" ? "stub_entry" : "manual";
 
+  // Ensure DB opens are in mem before mark (e.g. post-restart)
+  await hydrateOpenFromDb();
+
   const pos = setPaperMark(id, String(markRaw), source);
   if (!pos) {
     return c.json(
@@ -163,6 +174,21 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
       },
       404
     );
+  }
+
+  const db = getDb();
+  if (db) {
+    try {
+      await db
+        .update(positions)
+        .set({ currentPrice: pos.currentPrice })
+        .where(eq(positions.id, id));
+    } catch (err) {
+      console.warn(
+        "[positions] paper-mark postgres update best-effort failed:",
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 
   return c.json({
