@@ -3,6 +3,9 @@
 #   docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
 #
 # Phase 1 research only — trading flags forced off.
+# Optional Telegram AFK worker (paper): set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+# and TELEGRAM_DRY_RUN=false in .env, then:
+#   docker compose -f deploy/docker-compose.prod.yml --env-file .env --profile telegram up -d --build telegram
 
 services:
   postgres:
@@ -64,6 +67,27 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # Paper AFK Telegram worker (@Rhjuice_bot). No keys / no live sells.
+  # Requires TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in VPS .env.
+  # Keep TELEGRAM_DRY_RUN=true until ready; set false for live Bot API.
+  telegram:
+    build:
+      context: ..
+      dockerfile: workers/telegram/Dockerfile
+    restart: unless-stopped
+    profiles: ["telegram"]
+    environment:
+      API_BASE_URL: ${TELEGRAM_API_BASE_URL:-http://api:3001}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_DRY_RUN: ${TELEGRAM_DRY_RUN:-true}
+      POLL_MS: ${TELEGRAM_POLL_MS:-15000}
+      LARGE_MOVE_PCT: ${LARGE_MOVE_PCT:-25}
+      ENABLE_TRADING: "false"
+      ENABLE_TX_SUBMISSION: "false"
+    depends_on:
+      - api
 
   caddy:
     image: caddy:2.8-alpine
