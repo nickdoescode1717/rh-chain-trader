@@ -269,3 +269,15 @@ No buys without Nick. **Paper until he says otherwise.** CT/wallet leads remain 
 - Desk **proposals/scores may attach** to those position alerts later (context for hold/trim/exit)
 
 Still **paper until Nick flips**. Desk never signs; sell execution goes through Nick OK → isolated signer same as buys.
+
+## Overall rating /10 (TG alerts)
+**Nick 2026-09-09:** TG alerts show emoji + overall **/10** at top.
+
+**Hard-reject** → overall `null` (prefer no buy alert) or `0/10 ⛔ REJECT`.
+
+Scores `opp` / `risk` / `evidenceConfidence` on **0–100** (higher risk = worse):
+`overall10 = round( (opp/100) * ((100-risk)/100) * (evidenceConfidence/100) * 10 )`
+
+Caps: risk ≥ 80 → max 3; evidenceConfidence < 40 → max 4.
+Bands: 8–10 🟢 · 5–7 🟡 · 1–4 🔴 · 0/null ⛔
+Header: `{emoji} {overall10}/10 · $SYMBOL · 4663`
