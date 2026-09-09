@@ -1,7 +1,7 @@
 /**
  * Map Telegram callback_data → paper API posts.
  * actor = telegram:<userId>
- * Approve still returns signer_handoff_stub path only (API). Never signs.
+ * Approve → signer_handoff_stub only. Never signs.
  */
 
 import type { ApiClient } from "./api.js";
@@ -11,6 +11,8 @@ export type CallbackResult = {
   ok: boolean;
   action: string;
   detail: string;
+  proposalId?: string;
+  positionId?: string;
   apiBody?: unknown;
 };
 
@@ -39,6 +41,7 @@ export async function handleCallback(
       return {
         ok: true,
         action: "approve",
+        proposalId: parsed.id,
         detail: `Approved paper proposal ${parsed.id} → ${next} (no sign)`,
         apiBody,
       };
@@ -49,17 +52,18 @@ export async function handleCallback(
       return {
         ok: true,
         action: "reject",
-        detail: `Rejected paper proposal ${parsed.id}`,
+        proposalId: parsed.id,
+        detail: `Skipped paper proposal ${parsed.id}`,
         apiBody,
       };
     }
 
-    // sell — paper propose only; API may still 403
     if (parsed.action === "sell") {
       const apiBody = await api.sellPosition(parsed.positionId, actor);
       return {
         ok: true,
         action: "sell",
+        positionId: parsed.positionId,
         detail: `Paper sell proposed for position ${parsed.positionId} (no live sell)`,
         apiBody,
       };
@@ -68,10 +72,6 @@ export async function handleCallback(
     return { ok: false, action: "unknown", detail: "unreachable" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return {
-      ok: false,
-      action: parsed.action,
-      detail: msg,
-    };
+    return { ok: false, action: parsed.action, detail: msg };
   }
 }
