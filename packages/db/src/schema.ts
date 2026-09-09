@@ -1,7 +1,9 @@
 /**
  * Drizzle schema for Robinhood Chain research agent (Phase 1).
  * Trading tables exist as DISABLED stubs only — except purchase_proposals
- * which supports paper Nick-approval workflow (never auto-execute / no keys).
+ * which supports paper Nick-approval workflow (never auto-execute / no keys),
+ * and positions which supports paper track/alert/sell-propose stubs
+ * (see docs/POSITIONS.md; never live sells / no keys).
  */
 import {
   pgTable,
@@ -166,8 +168,30 @@ export const orders = pgTable("orders", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Paper positions — track / LARGE-move alert / sell-propose state machine.
+ * Status: simulated_open | alert_fired | sell_proposed | pending_nick
+ *   | approved | rejected | signer_handoff_stub | closed | disabled
+ * currentPrice nullable until oracle. Never auto-sell; no keys; no live sells.
+ * See docs/POSITIONS.md
+ */
 export const positions = pgTable("positions", {
   id: uuid("id").defaultRandom().primaryKey(),
+  tokenId: uuid("token_id").references(() => tokens.id),
+  tokenAddress: text("token_address"),
+  size: text("size"), // eth:0.05 | tokens:…
+  entryPrice: text("entry_price"),
+  currentPrice: text("current_price"), // nullable until oracle
+  pnlAbs: text("pnl_abs"),
+  pnlPct: real("pnl_pct"),
+  thresholds: jsonb("thresholds").$type<Record<string, unknown>>(),
+  proposalId: uuid("proposal_id").references(() => purchaseProposals.id),
+  lastAlertAt: timestamp("last_alert_at", { withTimezone: true }),
+  openedAt: timestamp("opened_at", { withTimezone: true }),
+  closedAt: timestamp("closed_at", { withTimezone: true }),
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+  channel: text("channel"), // grok_primary | telegram
   status: text("status").notNull().default("disabled"),
   note: text("note").notNull().default("DISABLED_PHASE1_NO_TRADING"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -178,3 +202,4 @@ export type Token = typeof tokens.$inferSelect;
 export type Score = typeof scores.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type PurchaseProposal = typeof purchaseProposals.$inferSelect;
+export type Position = typeof positions.$inferSelect;
