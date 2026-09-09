@@ -5,6 +5,7 @@
 import { Hono } from "hono";
 import { memBuyWallets } from "./buy-wallets.js";
 import {
+  computeUnrealized,
   getOpenPositions,
   paperCashEth,
   sumPositionsEthStub,
@@ -20,17 +21,29 @@ function fmtEth(n: number): string {
 
 paperBalanceRoutes.get("/", (c) => {
   const open = getOpenPositions();
-  const positions = open.map((p) => ({
-    id: p.id,
-    tokenCA: p.tokenAddress,
-    symbol: p.symbol ?? undefined,
-    size: p.size ?? undefined,
-    entryPrice: p.entryPrice ?? undefined,
-    mark: p.currentPrice ?? undefined,
-    markSource: p.markSource,
-    pnlPct: p.pnlPct,
-    proposalId: p.proposalId,
-  }));
+  let unrealizedSum = 0;
+  let incompleteMarks = false;
+
+  const positions = open.map((p) => {
+    const u = computeUnrealized(p);
+    if (u.unrealizedEth == null) incompleteMarks = true;
+    else unrealizedSum += u.unrealizedEth;
+    return {
+      id: p.id,
+      tokenCA: p.tokenAddress,
+      symbol: p.symbol ?? undefined,
+      size: p.size ?? undefined,
+      entryPrice: p.entryPrice ?? undefined,
+      mark: p.currentPrice ?? undefined,
+      markSource: p.markSource,
+      markLabel: u.markLabel,
+      unrealizedPct: u.unrealizedPct,
+      unrealizedEth: u.unrealizedEth,
+      unrealizedUsd: null as number | null,
+      pnlPct: p.pnlPct,
+      proposalId: p.proposalId,
+    };
+  });
 
   const cash = paperCashEth;
   const positionsEth = sumPositionsEthStub();
@@ -45,6 +58,10 @@ paperBalanceRoutes.get("/", (c) => {
     note: "rpc_pending — read-only RH 4663 balance when RPC wired; no keys",
   }));
 
+  const incompleteNote = incompleteMarks
+    ? " Some marks incomplete (null uPnL treated as 0 in sum)."
+    : "";
+
   return c.json({
     data: {
       paperOnly: true as const,
@@ -55,10 +72,13 @@ paperBalanceRoutes.get("/", (c) => {
       totals: {
         cashEth: fmtEth(cash),
         positionsEth: fmtEth(positionsEth),
+        unrealizedEth: fmtEth(unrealizedSum),
         equityEth: fmtEth(equity),
       },
       note:
-        "PAPER tracking — no keys; watched alphas excluded. positionsEth uses size eth notional until oracle. Buy wallets optional via POST /buy-wallets.",
+        "PAPER tracking — no keys; watched alphas excluded. Marks may be stub_entry / oracle_pending — not live oracle." +
+        incompleteNote +
+        " positionsEth uses size eth notional until oracle. Buy wallets optional via POST /buy-wallets.",
     },
     paperOnly: true,
   });

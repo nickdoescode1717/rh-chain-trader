@@ -10,6 +10,7 @@ import { getDb } from "../db.js";
 import {
   getOpenPositions,
   memPaperPositions,
+  setPaperMark,
   toPositionPayload,
   type MemPaperPosition,
 } from "../paper-positions-mem.js";
@@ -96,6 +97,79 @@ positionRoutes.get("/", async (c) => {
       note: "Paper positions (mem; postgres list failed). No live sells.",
     });
   }
+});
+
+/**
+ * Set paper mark for unrealized PnL testing. Paper only — reject keys.
+ * Body: { mark: string }. Optional source defaults to manual.
+ */
+positionRoutes.post("/:id/paper-mark", async (c) => {
+  const id = c.req.param("id");
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await c.req.json()) as Record<string, unknown>;
+  } catch {
+    body = {};
+  }
+
+  // Reject any key / credential fields — paper mark only
+  const forbidden = [
+    "key",
+    "privateKey",
+    "private_key",
+    "secret",
+    "mnemonic",
+    "seed",
+    "wallet",
+    "apiKey",
+    "api_key",
+  ];
+  for (const k of forbidden) {
+    if (k in body && body[k] != null && body[k] !== "") {
+      return c.json(
+        {
+          error: "keys_rejected",
+          paperOnly: true,
+          note: "PAPER ONLY — do not send keys; paper-mark accepts { mark } only.",
+        },
+        400
+      );
+    }
+  }
+
+  const markRaw = body.mark;
+  if (markRaw == null || String(markRaw).trim() === "") {
+    return c.json(
+      {
+        error: "mark_required",
+        paperOnly: true,
+        note: "Body must be { mark: string } — paper only.",
+      },
+      400
+    );
+  }
+
+  const sourceRaw = body.source;
+  const source: "manual" | "stub_entry" =
+    sourceRaw === "stub_entry" ? "stub_entry" : "manual";
+
+  const pos = setPaperMark(id, String(markRaw), source);
+  if (!pos) {
+    return c.json(
+      {
+        error: "position_not_found",
+        positionId: id,
+        paperOnly: true,
+      },
+      404
+    );
+  }
+
+  return c.json({
+    data: toPositionPayload(pos),
+    paperOnly: true,
+    note: "PAPER mark set — unrealized PnL uses this mark; no keys; no live oracle.",
+  });
 });
 
 /** Sell stub — never live. 501 paper_sell_propose_stub. */

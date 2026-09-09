@@ -31,6 +31,12 @@ function parseEthSize(size: string | null | undefined): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function parseFiniteNum(v: string | null | undefined): number | null {
+  if (v == null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
 function entryFromScores(scores: unknown): string | null {
   if (!scores || typeof scores !== "object") return null;
   const s = scores as Record<string, unknown>;
@@ -89,6 +95,84 @@ export function sumPositionsEthStub(): number {
     if (eth != null) sum += eth;
   }
   return sum;
+}
+
+/**
+ * Unrealized PnL vs mark for paper balance / TG.
+ * stub_entry with mark==entry → 0; oracle_pending / missing → nulls.
+ */
+export function computeUnrealized(p: MemPaperPosition): {
+  unrealizedPct: number | null;
+  unrealizedEth: number | null;
+  markLabel: string;
+} {
+  const entry = parseFiniteNum(p.entryPrice);
+  const mark = parseFiniteNum(p.currentPrice);
+
+  if (p.markSource === "oracle_pending" || mark == null || entry == null) {
+    return {
+      unrealizedPct: null,
+      unrealizedEth: null,
+      markLabel: "oracle_pending",
+    };
+  }
+
+  if (entry === 0) {
+    return {
+      unrealizedPct: null,
+      unrealizedEth: null,
+      markLabel: p.markSource === "stub_entry" ? "stub_entry" : String(p.markSource),
+    };
+  }
+
+  if (p.markSource === "stub_entry" && mark === entry) {
+    p.pnlPct = 0;
+    p.pnlAbs = "0";
+    return {
+      unrealizedPct: 0,
+      unrealizedEth: 0,
+      markLabel: "stub_entry (=entry)",
+    };
+  }
+
+  const pct = ((mark - entry) / entry) * 100;
+  const sizeEth = parseEthSize(p.size);
+  const unrealizedEth = sizeEth != null ? sizeEth * ((mark - entry) / entry) : null;
+
+  p.pnlPct = pct;
+  p.pnlAbs =
+    unrealizedEth != null
+      ? String(unrealizedEth)
+      : mark != null && entry != null
+        ? String(mark - entry)
+        : null;
+
+  const markLabel =
+    p.markSource === "manual"
+      ? "manual"
+      : p.markSource === "stub_entry"
+        ? "stub_entry"
+        : String(p.markSource);
+
+  return { unrealizedPct: pct, unrealizedEth, markLabel };
+}
+
+/**
+ * Set paper mark for testing unrealized PnL. Paper only — no keys / no RPC.
+ */
+export function setPaperMark(
+  id: string,
+  mark: string,
+  source: "manual" | "stub_entry" = "manual"
+): MemPaperPosition | null {
+  const pos = memPaperPositions.find((p) => p.id === id);
+  if (!pos) return null;
+  const trimmed = String(mark ?? "").trim();
+  if (!trimmed.length) return null;
+  pos.currentPrice = trimmed;
+  pos.markSource = source;
+  computeUnrealized(pos);
+  return pos;
 }
 
 /**
