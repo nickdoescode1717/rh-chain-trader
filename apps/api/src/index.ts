@@ -10,6 +10,8 @@ import { protocolRoutes } from "./routes/protocols.js";
 import { watchedWalletRoutes } from "./routes/watched-wallets.js";
 import { walletEventRoutes } from "./routes/wallet-events.js";
 import { purchaseProposalRoutes } from "./routes/purchase-proposals.js";
+import { buyWalletRoutes } from "./routes/buy-wallets.js";
+import { paperBalanceRoutes } from "./routes/paper-balance.js";
 
 const app = new Hono();
 
@@ -28,6 +30,8 @@ app.route("/protocols", protocolRoutes);
 app.route("/watched-wallets", watchedWalletRoutes);
 app.route("/wallet-events", walletEventRoutes);
 app.route("/purchase-proposals", purchaseProposalRoutes);
+app.route("/buy-wallets", buyWalletRoutes);
+app.route("/paper-balance", paperBalanceRoutes);
 
 app.get("/", (c) =>
   c.json({
@@ -46,6 +50,8 @@ app.get("/", (c) =>
       "/purchase-proposals",
       "/purchase-proposals/:id/approve",
       "/purchase-proposals/:id/reject",
+      "/buy-wallets",
+      "/paper-balance",
     ],
   })
 );
