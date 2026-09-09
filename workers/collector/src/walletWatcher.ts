@@ -301,10 +301,19 @@ export async function runWalletWatcherLoop(
         // idle
       } else {
         const watchedRows = await db.select().from(wallets);
-        const watched = watchedRows.map((w) => ({
-          id: w.id,
-          address: w.address.toLowerCase(),
-        }));
+        // Only real 20-byte hex addresses — skip FICTIONAL/demo seeds (invalid hex blows eth_getLogs).
+        const HEX_ADDR = /^0x[0-9a-f]{40}$/;
+        const watched: { id: string; address: string }[] = [];
+        for (const w of watchedRows) {
+          const address = w.address.toLowerCase();
+          if (!HEX_ADDR.test(address) || address.includes("fictional")) {
+            console.warn(
+              `[wallet-watcher] skip non-watchable address (demo/invalid): ${w.address}`
+            );
+            continue;
+          }
+          watched.push({ id: w.id, address });
+        }
 
         if (watched.length === 0) {
           if (!loggedEmpty) {
