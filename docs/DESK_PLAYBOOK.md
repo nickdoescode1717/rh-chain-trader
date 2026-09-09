@@ -92,3 +92,22 @@ CT handle → official domain → team claims → deployer hunt → factory/toke
 
 ## Append log
 - 2026-09-09: Initial playbook; Hansel Blockscout amend; ingest live `80b674e`; canonical CA proven; Nick correction + HARD RULES locked; lead sources co-equal CT + watched wallets.
+- 2026-09-09: Crumbs create-path (Pons V2 launchAndBuy) + anti-pattern SOP (chase event deployer / creator, not factory); CT Alpha Watchlist seeded.
+
+### Amend — Crumbs create path / tweet CA (2026-09-09)
+- Tweet/site CA match: canonical $CRUMBS `0x80baa4b3bfac6f4978700df824b1b3d98e889136`
+- Create path: Pons V2 `launchAndBuy` (TokenLaunched) via factory `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e`
+- Create tx: `0xf49fbbb1…` (Desk: full hash if known in prior notes; else leave truncated as Desk provided)
+- Event deployer: `0x00607eC8…`
+- Creator: `0x3711ceA4…`
+- **Pattern lesson:** platform own-token launched *via* an established pad — pad corroborates; **CT/site was the lead**. Do not treat Pons firehose as the opportunity.
+
+### Anti-pattern — pad launches obscure deployers
+Explorer “token creator” often = factory/router (e.g. Pons launchAndBuy). **SOP:** chase `launchAndBuy` caller / TokenLaunched event deployer + funding parents + fee/token recipients — **NOT** the factory.
+- Crumbs hunt: `0x00607eC8…` / `0x3711ceA4…`, not factory `0x7eD598Bc…`.
+
+## CT Alpha Watchlist (Desk)
+- `@crumbsfamily` — yes (primary CT lead for Crumbs pattern)
+- `t.me/crumbsfamily` — yes
+- `@magaman` — maybe
+- Third-party early callers — UNKNOWN (soft login wall / unverified)
