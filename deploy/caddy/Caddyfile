@@ -1,0 +1,21 @@
+# Replace research.example.com with your domain (A/AAAA → VPS IP).
+# Caddy obtains Let's Encrypt certs automatically.
+
+research.example.com {
+	encode gzip
+	reverse_proxy api:3001
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+}
+
+# Optional: serve the Vite build later
+# app.example.com {
+# 	root * /srv/web
+# 	encode gzip
+# 	try_files {path} /index.html
+# 	file_server
+# }
