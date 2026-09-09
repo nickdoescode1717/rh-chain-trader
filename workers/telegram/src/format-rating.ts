@@ -4,10 +4,17 @@
  * overall10 = round(quality * 10)
  * Caps: risk>=80 → max 3; evidenceConfidence<40 → max 4
  * Hard-reject → 0/10
+ * Note: opp/risk/evidence may arrive as 0–1 or 0–100 — normalize both.
  */
 
 import type { Proposal } from "./api.js";
 import { asRecord, str, toHundred } from "./format-desk.js";
+
+/** Treat values in (0,1] as fractions for any score axis */
+function score100(v: unknown): number {
+  const n = toHundred(v, true);
+  return n == null ? 0 : n;
+}
 
 export function overallRating(
   scores: Record<string, unknown> | null,
@@ -23,10 +30,9 @@ export function overallRating(
     };
   }
 
-  const opp = toHundred(scores?.opportunity) ?? 0;
-  const risk = toHundred(scores?.risk) ?? 100;
-  let conf = toHundred(scores?.evidenceConfidence ?? scores?.evidence, true);
-  if (conf == null) conf = 0;
+  const opp = score100(scores?.opportunity);
+  const risk = score100(scores?.risk);
+  const conf = score100(scores?.evidenceConfidence ?? scores?.evidence);
 
   let quality = (opp / 100) * ((100 - risk) / 100) * (conf / 100);
   if (quality < 0) quality = 0;
