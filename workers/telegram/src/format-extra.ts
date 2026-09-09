@@ -115,6 +115,12 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
   };
 }
 
+function fmtNum(n: number | null | undefined, digits = 4): string {
+  if (n == null || !Number.isFinite(n)) return "-";
+  const s = n.toFixed(digits).replace(/\.?0+$/, "");
+  return s || "0";
+}
+
 export function formatBalance(b: PaperBalance): FormattedMessage {
   const lines: string[] = [
     section("PAPER BALANCE", "💰"),
@@ -131,8 +137,13 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
   } else {
     for (const pos of b.positions.slice(0, 12)) {
       const sym = pos.symbol ? `$${pos.symbol}` : "token";
+      const label = pos.markLabel ?? pos.markSource ?? "?";
+      const uEth =
+        pos.unrealizedEth == null ? "-" : `${fmtNum(pos.unrealizedEth)} ETH`;
+      const uPct =
+        pos.unrealizedPct == null ? "-" : `${fmtNum(pos.unrealizedPct, 2)}%`;
       lines.push(
-        `• ${sym} ${pos.size ?? "-"} · entry ${pos.entryPrice ?? "-"} · mark ${pos.mark ?? "-"} · pnl% ${pos.pnlPct ?? "-"}`
+        `• ${sym} ${pos.size ?? "-"} · entry ${pos.entryPrice ?? "-"} · mark ${pos.mark ?? "-"} (${label}) · uPnL ${uEth} (${uPct})`
       );
       lines.push(`  CA ${pos.tokenCA ?? "-"} · id ${pos.id}`);
     }
@@ -146,12 +157,14 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
       lines.push(`  native: ${w.nativeEth ?? "rpc_pending"} · ${w.note ?? ""}`);
     }
   }
+  const uTotal = b.totals.unrealizedEth ?? "0";
   lines.push(
     "",
     section("TOTALS", "Σ"),
     `Cash ${b.totals.cashEth} ETH · Positions ${b.totals.positionsEth ?? "0"} · Equity ${b.totals.equityEth} ETH`,
+    `Unrealized: ${uTotal} ETH · Equity: ${b.totals.equityEth} ETH`,
     "",
-    str(b.note, "PAPER ONLY — watched wallets excluded. No keys.")
+    str(b.note, "PAPER ONLY — watched wallets excluded. No keys. Marks may be stub/oracle_pending.")
   );
   return { text: truncate(lines) };
 }
