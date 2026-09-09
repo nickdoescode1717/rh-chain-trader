@@ -26,10 +26,11 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 | Piece | Role |
 |-------|------|
 | **Hetzner VPS** | Docker Compose: Postgres, API, collector, optional Caddy |
-| **API** | Hono — research endpoints; trading routes return 403 |
+| **API** | Hono — research endpoints; paper `/purchase-proposals` allowed; `/orders` `/positions` still 403 until paper positions wire-up |
 | **Collector** | Read-only RPC (`eth_getLogs` / `eth_call`); factory ingest + wallet Transfer poller |
 | **Tunnel** | Desk/agents reach API at `http://127.0.0.1:13001` (not public `:3001`) |
-| **Repo** | `apps/api`, `apps/web`, `packages/core`, `packages/db`, `workers/collector`, `docs/`, `deploy/` |
+| **Repo** | `apps/api`, `apps/web`, `packages/core`, `packages/db`, `workers/collector`, `workers/telegram`, `docs/`, `deploy/` |
+| **Telegram worker** | Paper AFK: proposal approve/reject + LARGE-move alerts/Sell buttons (`workers/telegram/`; dry-run default) |
 
 **Team agents (Nick’s Grok Bot)**
 - **Desk** — tip of spear; research, scoring, CT alpha list, buy proposals
@@ -43,30 +44,37 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 - Factory verification + launch ingest (Pons V2 / pools.trade) — corroboration capability; `0002_verify_factories.sql`
 - Live paper stack: RPC green, trading false; real Pons tokens ingested
 - **`/watched-wallets`** CRUD + **`/wallet-events`** (Desk JSON shape) — empty-ready; Infra redeployed (~`d2dfa96`)
-- Docs: `docs/DESK_PLAYBOOK.md`, `docs/CT_ALPHA_WATCHLIST.md` (Desk owns content; Coder commits)
+- Docs: `docs/DESK_PLAYBOOK.md`, `docs/CT_ALPHA_WATCHLIST.md`, `docs/PURCHASE_PROPOSALS.md`, `docs/POSITIONS.md`
+- **Paper purchase proposals** — `/purchase-proposals` list/create/approve/reject (signer handoff stub only; never signs)
+- **Paper Telegram AFK worker** — `workers/telegram/` dry-run default; approve/reject + LARGE-move alert/Sell format (no live sells)
 
 **In flight / blocked**
-- Collector **`walletWatcher`** Transfer poller — code ready locally; push may be gated on **Auto-review** (needs human approval UI)
-- Buy-proposal schema + approval state machine — backlog after wallet collector
+- Collector **`walletWatcher`** Transfer poller — on main; Infra rebuild as needed (empty list = no-op healthy)
+- Paper **positions** API wire-up (doc ready; routes still 403)
 - Platform registry / DD gate — after wallet MVP or when Nick picks
 
 ## 4. Backlog priority
 
-1. Finish **wallet collector** on main + Infra rebuild collector (empty list = no-op healthy)
-2. Thin **PurchaseProposal** schema + approval state machine (pending/approved/rejected/expired; revalidate on approve)
-3. Wire **Grok Bot** approve UX; document **Telegram** fallback interface (same payload)
+1. Infra rebuild collector with wallet watcher on VPS (empty list = no-op healthy)
+2. Wire **Grok Bot** approve UX against `/purchase-proposals` (TG paper worker already in `workers/telegram/`)
+3. Paper **positions** API (`docs/POSITIONS.md`) — track / alerts / sell-propose; keep `/orders` live dark
 4. **Isolated signer** handoff contract (no keys on research box)
 5. **X** discovery integration when Nick funds API/vendor
 6. Platform registry + scoped listen (not firehose)
-7. Paper **positions** track / LARGE-move alerts / sell-propose — see `docs/POSITIONS.md` (paper-first; no live sells; no keys)
+
+### Next / tools
+- Opt-in live Telegram long-poll on VPS (`TELEGRAM_DRY_RUN=false` + bot token in secret store only); keep paper-only — no live sells
 
 ## 5. Key docs / paths
 
 - `docs/DESK_PLAYBOOK.md` — Desk SOP, Crumbs pattern, scoring, buy path
 - `docs/CT_ALPHA_WATCHLIST.md` — CT alpha accounts SoT (separate from on-chain wallets)
+- `docs/PURCHASE_PROPOSALS.md` — phone-ready paper proposal payload + state machine + TG worker
+- `docs/POSITIONS.md` — paper positions / LARGE-move alerts / sell-propose (no live sells)
+- `workers/telegram/README.md` — paper AFK TG worker (dry-run default)
 - `docs/architecture.md`, `docs/SPEC.md`
 - `deploy/` — `docker-compose.prod.yml`, `.env.prod.example`, Hetzner notes
-- `packages/db/src/schema.ts` — includes `wallets`, `wallet_events` (and disabled trading stubs)
+- `packages/db/src/schema.ts` — includes `wallets`, `wallet_events`, paper `purchase_proposals`
 
 ## 6. Secrets (names only — never commit)
 
@@ -88,10 +96,11 @@ Store only in VPS `.env` / secret store. **Never** git, LLM prompts, or chat pas
 curl -s http://127.0.0.1:13001/health
 curl -s http://127.0.0.1:13001/watched-wallets
 curl -s http://127.0.0.1:13001/wallet-events
+curl -s http://127.0.0.1:13001/purchase-proposals
 curl -s http://127.0.0.1:13001/protocols
 ```
 
-Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched list is OK.
+Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched list is OK. Proposals are paper-only (approve → `signer_handoff_stub`). TG worker: `cd workers/telegram && pnpm dry-run`.
 
 ## 8. Do-nots
 
