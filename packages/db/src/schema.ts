@@ -1,6 +1,7 @@
 /**
  * Drizzle schema for Robinhood Chain research agent (Phase 1).
- * Trading tables exist as DISABLED stubs only.
+ * Trading tables exist as DISABLED stubs only — except purchase_proposals
+ * which supports paper Nick-approval workflow (never auto-execute / no keys).
  */
 import {
   pgTable,
@@ -133,12 +134,26 @@ export const auditLog = pgTable("audit_log", {
 });
 
 /**
- * DISABLED Phase 1 stubs — no production trading paths.
- * Rows may exist for schema completeness; application must refuse to act on them.
+ * Paper purchase proposals — Nick approve/reject state machine.
+ * Status: pending_nick | approved | rejected | expired | cancelled | disabled
+ * Default stays non-executable. Never auto-execute; no keys; no tx submit.
+ * See docs/PURCHASE_PROPOSALS.md
  */
 export const purchaseProposals = pgTable("purchase_proposals", {
   id: uuid("id").defaultRandom().primaryKey(),
   tokenId: uuid("token_id").references(() => tokens.id),
+  tokenAddress: text("token_address"),
+  size: text("size"), // eth:0.05 | usd:100
+  slippageBps: integer("slippage_bps"),
+  exits: jsonb("exits").$type<Record<string, unknown>>(),
+  scores: jsonb("scores").$type<Record<string, unknown>>(),
+  sources: jsonb("sources").$type<Record<string, unknown>[]>(),
+  leadSource: text("lead_source"), // ct | watched_wallet
+  rationale: text("rationale"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  channel: text("channel"), // grok_primary | telegram_fallback
+  approvedAt: timestamp("approved_at", { withTimezone: true }),
+  rejectedAt: timestamp("rejected_at", { withTimezone: true }),
   status: text("status").notNull().default("disabled"),
   note: text("note").notNull().default("DISABLED_PHASE1_NO_TRADING"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -162,3 +177,4 @@ export type Protocol = typeof protocols.$inferSelect;
 export type Token = typeof tokens.$inferSelect;
 export type Score = typeof scores.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
+export type PurchaseProposal = typeof purchaseProposals.$inferSelect;
