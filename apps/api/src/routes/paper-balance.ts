@@ -1,12 +1,13 @@
 /**
  * Paper balance for Nick buy stack — purse + paper positions + buy wallets.
  * Never includes watched-wallet alphas. No keys / no RPC signing.
+ * Hydrates opens from DB so cash+positions survive API restart.
  */
 import { Hono } from "hono";
 import { memBuyWallets } from "./buy-wallets.js";
 import {
   computeUnrealized,
-  getOpenPositions,
+  listOpenPositionsMerged,
   paperCashEth,
   sumPositionsEthStub,
 } from "../paper-positions-mem.js";
@@ -19,8 +20,8 @@ function fmtEth(n: number): string {
   return s || "0";
 }
 
-paperBalanceRoutes.get("/", (c) => {
-  const open = getOpenPositions();
+paperBalanceRoutes.get("/", async (c) => {
+  const open = await listOpenPositionsMerged();
   let unrealizedSum = 0;
   let incompleteMarks = false;
 
