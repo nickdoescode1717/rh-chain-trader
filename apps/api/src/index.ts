@@ -7,6 +7,8 @@ import { healthRoutes } from "./routes/health.js";
 import { tokenRoutes } from "./routes/tokens.js";
 import { watchlistRoutes } from "./routes/watchlist.js";
 import { protocolRoutes } from "./routes/protocols.js";
+import { watchedWalletRoutes } from "./routes/watched-wallets.js";
+import { walletEventRoutes } from "./routes/wallet-events.js";
 
 const app = new Hono();
 
@@ -22,6 +24,8 @@ app.route("/health", healthRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/watchlist", watchlistRoutes);
 app.route("/protocols", protocolRoutes);
+app.route("/watched-wallets", watchedWalletRoutes);
+app.route("/wallet-events", walletEventRoutes);
 
 app.get("/", (c) =>
   c.json({
@@ -29,7 +33,15 @@ app.get("/", (c) =>
     phase: 1,
     disclaimer:
       "Research dashboard only. No live trading, signing, or tx submission.",
-    endpoints: ["/health", "/tokens", "/tokens/:id", "/watchlist", "/protocols"],
+    endpoints: [
+      "/health",
+      "/tokens",
+      "/tokens/:id",
+      "/watchlist",
+      "/protocols",
+      "/watched-wallets",
+      "/wallet-events",
+    ],
   })
 );
 
