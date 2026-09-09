@@ -1,6 +1,6 @@
 /**
  * Desk-order Telegram proposal formatter — plain text (no parse_mode).
- * Top: overall /10 + emoji (Desk formula). Then Header → Thesis → Scores → …
+ * Top: overall /10 + emoji. Header shows FULL CA + mcap. Trade repeats CA/mcap/liq.
  */
 
 import type { Proposal } from "./api.js";
@@ -8,8 +8,10 @@ import {
   asRecord,
   evidenceBullets,
   exitsLine,
+  fullCa,
   leadExtra,
   leadLabel,
+  marketLines,
   riskLines,
   scoreDisplay,
   scoreWhy,
@@ -30,8 +32,9 @@ export type FormattedMessage = {
 };
 
 export function formatProposal(p: Proposal): FormattedMessage {
-  const ca = String(p.tokenCA ?? p.tokenAddress ?? "");
+  const ca = fullCa(p);
   const scores = asRecord(p.scores);
+  const market = marketLines(p, scores);
   const symbol = str(
     (p as { tokenSymbol?: unknown }).tokenSymbol ??
       (p as { symbol?: unknown }).symbol ??
@@ -55,11 +58,18 @@ export function formatProposal(p: Proposal): FormattedMessage {
 
   const lines = [
     `${rating.line} · $${symbol} · 4663 · 📄 PAPER`,
+    `CA: ${ca}`,
+    `Mcap: ${market.mcapLine}`,
     "━━━━━━━━━━━━━━━━━━━━",
     section("TOKEN", "🪙"),
-    `CA: ${ca || "(missing — do not approve)"}`,
+    `CA: ${ca}`,
+    `Mcap: ${market.mcapLine}`,
+    `Liq: ${market.liqLine}`,
     `ID: ${p.id}`,
     `Status: ${str(p.status, "pending_nick")}`,
+    market.incomplete
+      ? "⚠ Incomplete: Desk must attach full CA + mcap (+ liq when known)."
+      : null,
     "",
     section("THESIS", "📌"),
     thesis,
@@ -79,6 +89,9 @@ export function formatProposal(p: Proposal): FormattedMessage {
     ...risks,
     "",
     section("TRADE", "💸"),
+    `CA: ${ca}`,
+    `Mcap: ${market.mcapLine}`,
+    `Liq: ${market.liqLine}`,
     `Size: ${sizeLine(p)}`,
     `Slippage: ${p.slippageBps ?? "-"} bps`,
     `Exits: ${exitsLine(p)}`,
@@ -86,7 +99,7 @@ export function formatProposal(p: Proposal): FormattedMessage {
     "",
     section("ASK", "✅"),
     "Approve (paper) or Skip. No keys. No live tx.",
-  ];
+  ].filter((x) => x != null) as string[];
 
   return {
     text: truncate(lines),

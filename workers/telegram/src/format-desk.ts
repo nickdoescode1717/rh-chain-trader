@@ -194,3 +194,100 @@ export function truncate(lines: string[]): string {
   if (text.length <= TG_MAX) return text;
   return `${text.slice(0, TG_MAX - 18)}\n…(truncated)`;
 }
+
+/** Never truncate CA — full 0x… always. */
+export function fullCa(p: Proposal): string {
+  const raw = String(p.tokenCA ?? p.tokenAddress ?? "").trim();
+  if (!raw) return "(missing CA — do not approve)";
+  return raw;
+}
+
+function moneyUsd(v: unknown): string | null {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "number" && Number.isFinite(v)) {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(2)}M`;
+    if (v >= 1_000) return `$${(v / 1_000).toFixed(1)}K`;
+    return `$${v}`;
+  }
+  const s = String(v).trim();
+  if (!s) return null;
+  if (s.startsWith("$")) return s;
+  const n = Number(s.replace(/,/g, ""));
+  if (Number.isFinite(n)) return moneyUsd(n);
+  return s;
+}
+
+/**
+ * Pull mcap/liq from scores.market, top-level market, or flat scores fields.
+ * Missing → honest incomplete labels (Nick: required on proposals).
+ */
+export function marketLines(
+  p: Proposal,
+  scores: Record<string, unknown> | null
+): { mcapLine: string; liqLine: string; incomplete: boolean } {
+  const market =
+    asRecord((p as { market?: unknown }).market) ??
+    asRecord(scores?.market) ??
+    {};
+  const mcapRaw =
+    market.mcapUsd ??
+    market.mcap ??
+    market.marketCap ??
+    scores?.mcapUsd ??
+    scores?.mcap ??
+    scores?.marketCap ??
+    (p as { mcap?: unknown }).mcap ??
+    (p as { marketCap?: unknown }).marketCap;
+  const liqRaw =
+    market.liqUsd ??
+    market.liquidityUsd ??
+    market.liq ??
+    scores?.liqUsd ??
+    scores?.liquidityUsd ??
+    scores?.liq ??
+    (p as { liq?: unknown }).liq;
+  const mcapSrc = str(
+    market.mcapSource ?? market.source ?? scores?.mcapSource ?? "",
+    ""
+  );
+  const liqSrc = str(
+    market.liqSource ?? market.pool ?? market.venue ?? scores?.liqSource ?? "",
+    ""
+  );
+  const mcapAt = str(
+    market.mcapObservedAt ?? market.observedAt ?? scores?.mcapObservedAt ?? "",
+    ""
+  );
+  const liqAt = str(
+    market.liqObservedAt ?? market.observedAt ?? scores?.liqObservedAt ?? "",
+    ""
+  );
+
+  const mcapMoney = moneyUsd(mcapRaw);
+  const liqMoney = moneyUsd(liqRaw);
+  let incomplete = false;
+
+  let mcapLine: string;
+  if (mcapMoney) {
+    const bits = [mcapMoney];
+    if (mcapSrc && mcapSrc !== "-") bits.push(mcapSrc);
+    if (mcapAt && mcapAt !== "-") bits.push(mcapAt);
+    mcapLine = bits.join(" · ");
+  } else {
+    incomplete = true;
+    mcapLine = "(missing — incomplete proposal)";
+  }
+
+  let liqLine: string;
+  if (liqMoney) {
+    const bits = [liqMoney];
+    if (liqSrc && liqSrc !== "-") bits.push(liqSrc);
+    if (liqAt && liqAt !== "-") bits.push(liqAt);
+    liqLine = bits.join(" · ");
+  } else {
+    incomplete = true;
+    liqLine = "(unknown — attach when known)";
+  }
+
+  return { mcapLine, liqLine, incomplete };
+}
