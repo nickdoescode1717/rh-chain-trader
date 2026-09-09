@@ -17,7 +17,7 @@ rh-chain-trader/
 │   ├── core/         # Types, scoring (meme/utility), risk heuristics
 │   └── db/           # Drizzle ORM schema + SQL migrations + FICTIONAL seed
 ├── workers/
-│   └── collector/    # RPC / log listener stubs (no-op without RPC_URL)
+│   └── collector/    # On-chain launch ingest (eth_getLogs; no-op without RPC_URL)
 ├── docs/architecture.md
 ├── docker-compose.yml
 └── .env.example
@@ -115,9 +115,11 @@ See `.env.example`. Key vars:
 pnpm --filter @rh/core test
 ```
 
-## Protocol seeds
+## Protocol seeds / verified factories
 
-Uniswap, Pools.trade, Pons — `factory_address` is `null` with **NEEDS_ONCHAIN_VERIFICATION** comments until confirmed on chain 4663.
+Migration `0002_verify_factories.sql` sets Uniswap / Pons / pools.trade `factory_address` + `verified_onchain=true` (chain 4663, eth_getCode verified).
+
+Collector polls Pons V2 + both pools.trade entries (read-only); upserts tokens/evidence with `source=onchain`.
 
 ## Sample data
 

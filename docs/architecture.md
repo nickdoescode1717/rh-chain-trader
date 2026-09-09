@@ -32,13 +32,13 @@ It indexes protocols/tokens, stores evidence, computes opportunity / risk / evid
 | `packages/db` | Drizzle schema, SQL migrations, FICTIONAL seed |
 | `apps/api` | REST: `/health`, `/tokens`, `/watchlist`, `/protocols` |
 | `apps/web` | React dashboard pages for tokens, detail, watchlist, protocols |
-| `workers/collector` | RPC/log listener stubs; idle without `RPC_URL` |
+| `workers/collector` | Real eth_getLogs launch ingest (Pons V2 + pools.trade); idle without `RPC_URL` |
 
 ## Chain & explorers
 
 - Chain ID: `4663`
 - Blockscout: `https://robinhoodchain.blockscout.com`
-- Protocol seeds: Uniswap, Pools.trade, Pons — `factory_address` is **null** with `NEEDS_ONCHAIN_VERIFICATION` until verified on-chain.
+- Protocol factories verified on chain 4663 via migration `0002_verify_factories.sql` + collector upserts.
 
 ## Scoring
 
@@ -66,6 +66,6 @@ Stubbed / disabled: `purchase_proposals`, `orders`, `positions` (status `disable
 
 ## Future phases (not implemented)
 
-- Verified factory addresses and real pool indexing
-- Evidence pipeline from Blockscout APIs
+- Deeper pool / liquidity indexing beyond launch events
+- Evidence pipeline from Blockscout APIs (beyond tx links)
 - Human-in-the-loop research reports only (still no autonomous trading unless explicitly redesigned)
