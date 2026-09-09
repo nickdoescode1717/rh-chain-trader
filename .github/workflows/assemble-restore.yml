@@ -1,0 +1,46 @@
+name: assemble-restore
+on:
+  push:
+    paths:
+      - "docs/_restore/**"
+      - "scripts/assemble-restore.mjs"
+      - ".github/workflows/assemble-restore.yml"
+  workflow_dispatch:
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check parts complete
+        id: check
+        run: |
+          set -e
+          MAN=docs/_restore/MANIFEST.json
+          test -f "$MAN" || { echo "missing manifest"; echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          SPEC_N=$(python3 -c "import json;print(json.load(open('$MAN'))['spec_parts'])")
+          LOCK_N=$(python3 -c "import json;print(json.load(open('$MAN'))['lock_parts'])")
+          for i in $(seq 0 $((SPEC_N-1))); do
+            f=$(printf 'docs/_restore/SPEC.part%02d' "$i")
+            test -f "$f" || { echo "missing $f"; echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          done
+          for i in $(seq 0 $((LOCK_N-1))); do
+            f=$(printf 'docs/_restore/LOCK.part%02d' "$i")
+            test -f "$f" || { echo "missing $f"; echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          done
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Assemble files
+        if: steps.check.outputs.ready == 'true'
+        run: node scripts/assemble-restore.mjs
+      - name: Commit assembled artifacts
+        if: steps.check.outputs.ready == 'true'
+        run: |
+          set -e
+          rm -rf docs/_restore scripts/assemble-restore.mjs .github/workflows/assemble-restore.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status
+          git commit -m "Phase 1 research dashboard only — no trading (assemble SPEC.md + pnpm-lock.yaml)"
+          git push
