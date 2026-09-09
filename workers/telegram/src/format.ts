@@ -120,5 +120,6 @@ export {
   formatPaperFillSuccess,
   formatLargeMoveAlert,
   formatBalance,
+  formatPositionsList,
 } from "./format-extra.js";
 export type { PaperFillInput, LargeMoveAlertInput } from "./format-extra.js";

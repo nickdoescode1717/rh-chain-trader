@@ -1,6 +1,6 @@
 /**
  * Paper-only Telegram AFK worker.
- * Desk-order proposals, post-approve paper fill, /balance buy wallets.
+ * Desk-order proposals, post-approve paper fill, /balance + /positions.
  * Never signs, never loads keys, never submits txs.
  */
 
@@ -9,7 +9,9 @@ import { handleCallback } from "./callbacks.js";
 import {
   fillFromApprove,
   handleBalanceCommand,
+  handlePositionsCommand,
   isBalanceCommand,
+  isPositionsCommand,
 } from "./commands.js";
 import {
   formatLargeMoveAlert,
@@ -124,6 +126,17 @@ async function processTgUpdates(): Promise<void> {
       }
       continue;
     }
+    if (msg?.text && isPositionsCommand(msg.text)) {
+      console.log(`[telegram] /positions from ${msg.from?.id ?? "?"}`);
+      try {
+        await handlePositionsCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
+          liveBot.sendMessage(id, text)
+        );
+      } catch (err) {
+        console.warn("[telegram] /positions failed:", err instanceof Error ? err.message : err);
+      }
+      continue;
+    }
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
@@ -166,7 +179,7 @@ async function tick(): Promise<void> {
 console.log(
   `[telegram] paper AFK worker starting dryRun=${dry} api=${API_BASE_URL} pollMs=${POLL_MS} chatId=${CHAT_ID ? "set" : "unset"}`
 );
-console.log("[telegram] ENABLE_TRADING must stay false. No keys. Approve → signer_handoff_stub only.");
+console.log("[telegram] ENABLE_TRADING must stay false. No keys. Approve → position + signer_handoff_stub.");
 
 if (dry) {
   const sample = formatProposal({

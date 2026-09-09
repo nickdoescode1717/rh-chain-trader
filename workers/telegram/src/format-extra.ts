@@ -1,5 +1,5 @@
 /**
- * Extra TG formatters: paper fill receipt, large-move, /balance.
+ * Extra TG formatters: paper fill receipt, large-move, /balance, /positions.
  * Plain text only.
  */
 
@@ -14,6 +14,7 @@ type FormattedMessage = {
 
 export type PaperFillInput = {
   proposalId: string;
+  positionId?: string | null;
   status?: string;
   size?: string | null;
   sizeEth?: string | null;
@@ -39,11 +40,12 @@ export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage 
   const buy =
     input.buyAddress && input.buyAddress.length
       ? input.buyAddress
-      : "(none registered — POST /buy-wallets when ready)";
+      : "(none registered)";
   const lines = [
     section("PAPER FILL", "🧾"),
-    "Status: paper execution receipt (stub)",
+    "Status: paper execution receipt — position opened",
     `Proposal: ${input.proposalId}`,
+    `Position: ${str(input.positionId, "(missing)")}`,
     `Token: $${str(input.symbol, "?")} · ${str(input.tokenCA, "-")}`,
     `Size: ${size}`,
     `Price: ${str(input.price, "n/a (paper stub)")}`,
@@ -116,8 +118,7 @@ export function formatLargeMoveAlert(input: LargeMoveAlertInput): FormattedMessa
 export function formatBalance(b: PaperBalance): FormattedMessage {
   const lines: string[] = [
     section("PAPER BALANCE", "💰"),
-    "Nick buy wallets / paper purse — NOT watched alphas",
-    "Key model: single_controlling_key_multi_address (addresses only here)",
+    "Nick buy purse + open paper positions — NOT watched alphas",
     "",
     section("PAPER PURSE", "💵"),
     `Cash: ${b.cashEth} ETH`,
@@ -126,7 +127,7 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
     section("PAPER POSITIONS", "📦"),
   ];
   if (!b.positions.length) {
-    lines.push("• (none open)");
+    lines.push("• (none open — Approve a proposal to open)");
   } else {
     for (const pos of b.positions.slice(0, 12)) {
       const sym = pos.symbol ? `$${pos.symbol}` : "token";
@@ -138,8 +139,7 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
   }
   lines.push("", section("BUY WALLETS (4663)", "🏦"));
   if (!b.buyWallets.length) {
-    lines.push("• (empty — register via POST /buy-wallets when ready)");
-    lines.push("• RPC balances: pending until addresses set (read-only, no keys)");
+    lines.push("• (empty — optional later; not required for paper loop)");
   } else {
     for (const w of b.buyWallets) {
       lines.push(`• ${w.label ?? "buy"} ${w.address}`);
@@ -153,5 +153,30 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
     "",
     str(b.note, "PAPER ONLY — watched wallets excluded. No keys.")
   );
+  return { text: truncate(lines) };
+}
+
+export function formatPositionsList(positions: Position[]): FormattedMessage {
+  const lines: string[] = [
+    section("PAPER POSITIONS", "📦"),
+    "Open / recent simulated positions",
+    "",
+  ];
+  const open = positions.filter((p) => p.status === "simulated_open");
+  const list = open.length ? open : positions;
+  if (!list.length) {
+    lines.push("• (none — Approve a paper proposal to open one)");
+  } else {
+    for (const pos of list.slice(0, 15)) {
+      const sym = pos.symbol ? `$${pos.symbol}` : "token";
+      lines.push(`• ${sym} · ${pos.status ?? "?"} · ${pos.size ?? "-"}`);
+      lines.push(`  id ${pos.id}`);
+      lines.push(`  CA ${pos.tokenCA ?? "-"}`);
+      lines.push(
+        `  entry ${pos.entryPrice ?? "-"} · mark ${pos.currentPrice ?? "oracle_pending"}`
+      );
+    }
+  }
+  lines.push("", "PAPER ONLY — no live sells. /balance for cash+equity.");
   return { text: truncate(lines) };
 }
