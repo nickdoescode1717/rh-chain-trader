@@ -42,6 +42,13 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Telegram portfolio improvements (deployed 2026-09-09)**
+- Application revision `3722eae6c2942ad1d8e9df4969cc2bd7cccc9b15` deployed to API and Telegram. Positions use five-item pages, detail/refresh/balance buttons, shortened addresses in summaries and full addresses in details. Research/portfolio navigation edits the current message.
+- Token display labels recover through exact chain/address token joins or the original proposal scores after restart. Labels are not issuer verification. Verified CRUMBS, STONKBROKER and PAPERDEMO labels against the deployed database.
+- P&L displays recorded manual-mark estimates in the cost currency, with placeholder/missing price states explicitly unavailable. Balance labels incomplete equity and excludes non-ETH holdings from ETH P&L. Receipts omit internal plumbing and alerts no longer offer an unimplemented sell action.
+- 43 relevant API/Telegram tests passed; both builds and live read-only portfolio rendering passed. See `docs/deployments/2026-09-09-portfolio.md`.
+- Priority remaining: trustworthy entry snapshots, timestamped/current price source and quote currency, durable mark provenance, and accounting/execution reliability. Existing CRUMBS/STONKBROKER entries have no price; do not fabricate historical fills. Live pricing, automatic buys and sells remain absent.
+
 **Telegram interface branch (2026-09-09)**
 - Added `/help`, `/projects`, `/watch`, `/research`, `/pause`, `/resume` and inline project controls in the existing bot. A monitoring API updates project and X enablement together without clearing reports or resetting the paid research schedule.
 - Automatic research cards notify on the first report and changed rating/coverage/checks, subdomain status, mentioned address set or launch blockers. Timestamp-only/prose-only changes are suppressed; restart deduplication is stored on a Compose volume. Single Telegram worker replica; delivery can duplicate after an uncertain send/crash before state persistence.
