@@ -53,3 +53,8 @@ button {
   border-radius: 8px; padding: 0.4rem 0.75rem; cursor: pointer; font-weight: 600;
 }
 button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.discovery-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 1rem; }
+.discovery-controls input:not([type="checkbox"]) { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: .5rem; border-radius: 6px; }
+.discovery-table { overflow-x: auto; }
+.discovery-address { overflow-wrap: anywhere; }
+button:disabled { opacity: .5; cursor: default; }

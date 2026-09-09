@@ -50,6 +50,8 @@ On first boot, Postgres runs `packages/db/drizzle/0000_init.sql` then **FICTIONA
 
 API health: `curl http://localhost:3001/health`
 
+X discovery: the `/discovery` dashboard manages monitored accounts and shows social evidence and launch matches. Collection is opt-in (`X_DISCOVERY_ENABLED=false` by default). See [X discovery setup and limitations](docs/X_DISCOVERY.md). Automatic purchases are not yet connected.
+
 Run the web UI locally against Compose API:
 
 ```bash

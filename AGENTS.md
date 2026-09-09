@@ -40,6 +40,11 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 
 ## 3. Current state (main, ~2026-09-09)
 
+**X discovery branch (2026-09-09)**
+- User now wants X/follow-graph discovery leading toward automatic token-launch buys; account selection and spend/mode parameters were requested and remain pending.
+- Added opt-in official X API scanner, persisted post/graph cursors and evidence (migration 0006), `/discovery/*` APIs, and Discovery dashboard. See `docs/X_DISCOVERY.md` for setup and limitations.
+- Execution is not implemented by discovery. No live signing, spending, or automatic wallet enrollment. Activation requires configured accounts, X access, explicit purchase policy, and verified execution adapters.
+
 **Codex paper-workflow fixes (2026-09-09 branch)**
 - Paper `/positions` routes are wired (the older backlog notes below are stale); live sells remain a 501 stub.
 - Proposal amounts require one positive finite ETH/USD amount; malformed JSON shapes, marks, and slippage are rejected.
