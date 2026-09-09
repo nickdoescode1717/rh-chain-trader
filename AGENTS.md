@@ -58,6 +58,7 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 4. **Isolated signer** handoff contract (no keys on research box)
 5. **X** discovery integration when Nick funds API/vendor
 6. Platform registry + scoped listen (not firehose)
+7. Paper **positions** track / LARGE-move alerts / sell-propose — see `docs/POSITIONS.md` (paper-first; no live sells; no keys)
 
 ## 5. Key docs / paths
 
