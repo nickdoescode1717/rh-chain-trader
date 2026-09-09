@@ -26,6 +26,7 @@ export type Proposal = {
 export type Position = {
   id: string;
   tokenCA?: string;
+  tokenAddress?: string;
   chainId?: number;
   size?: string | null;
   entryPrice?: string | null;
@@ -34,6 +35,7 @@ export type Position = {
   pnlAbs?: number | null;
   status?: string;
   symbol?: string | null;
+  proposalId?: string | null;
   [key: string]: unknown;
 };
 
