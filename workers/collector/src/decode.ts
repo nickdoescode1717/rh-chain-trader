@@ -70,3 +70,21 @@ export const ERC20_SELECTORS = {
   symbol: "0x95d89b41",
   decimals: "0x313ce567",
 } as const;
+
+/** Decode ABI uint256 (hex data word or full data) to decimal string. */
+export function decodeUint256(hex: string | null | undefined): string | null {
+  if (!hex || hex === "0x") return null;
+  try {
+    const raw = hex.startsWith("0x") ? hex : "0x" + hex;
+    const word = raw.length >= 66 ? raw.slice(0, 66) : raw;
+    return BigInt(word).toString(10);
+  } catch {
+    return null;
+  }
+}
+
+/** Pad address to 32-byte topic (lowercase). */
+export function addressToTopic(address: string): string {
+  const hex = address.toLowerCase().replace(/^0x/, "");
+  return "0x" + hex.padStart(64, "0");
+}
