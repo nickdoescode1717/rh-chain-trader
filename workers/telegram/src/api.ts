@@ -1,5 +1,5 @@
 /**
- * Thin HTTP client for paper API (purchase proposals + optional positions).
+ * Thin HTTP client for paper API (proposals, positions, paper balance).
  * Never loads keys. Never signs/submits txs.
  */
 
@@ -36,6 +36,33 @@ export type Position = {
   [key: string]: unknown;
 };
 
+export type BuyWallet = {
+  address: string;
+  label?: string | null;
+  kind?: string;
+  chainId?: number;
+  nativeEth?: string | null;
+  note?: string | null;
+};
+
+export type PaperBalance = {
+  paperOnly: true;
+  cashEth: string;
+  equityEth: string;
+  positions: Array<{
+    id: string;
+    tokenCA?: string;
+    symbol?: string;
+    size?: string;
+    entryPrice?: string;
+    mark?: string;
+    pnlPct?: number | null;
+  }>;
+  buyWallets: BuyWallet[];
+  totals: { cashEth: string; positionsEth?: string; equityEth: string };
+  note?: string;
+};
+
 export type ApiClient = {
   baseUrl: string;
   listProposals: () => Promise<Proposal[]>;
@@ -43,6 +70,7 @@ export type ApiClient = {
   rejectProposal: (id: string, actor: string, reason?: string) => Promise<unknown>;
   listPositions: () => Promise<Position[] | null>;
   sellPosition: (positionId: string, actor: string) => Promise<unknown>;
+  getPaperBalance: () => Promise<PaperBalance>;
 };
 
 function joinUrl(base: string, path: string): string {
@@ -81,9 +109,7 @@ export function createApiClient(baseUrl: string): ApiClient {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, "/purchase-proposals")
       );
-      if (!ok) {
-        throw new Error(`listProposals failed: HTTP ${status}`);
-      }
+      if (!ok) throw new Error(`listProposals failed: HTTP ${status}`);
       const data = (body as { data?: Proposal[] })?.data;
       return Array.isArray(data) ? data : [];
     },
@@ -94,9 +120,7 @@ export function createApiClient(baseUrl: string): ApiClient {
         { method: "POST", body: JSON.stringify({ actor }) }
       );
       if (!ok) {
-        throw new Error(
-          `approveProposal failed: HTTP ${status} ${JSON.stringify(body)}`
-        );
+        throw new Error(`approveProposal failed: HTTP ${status} ${JSON.stringify(body)}`);
       }
       return body;
     },
@@ -104,49 +128,40 @@ export function createApiClient(baseUrl: string): ApiClient {
     async rejectProposal(id, actor, reason) {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/purchase-proposals/${encodeURIComponent(id)}/reject`),
-        {
-          method: "POST",
-          body: JSON.stringify({ actor, reason: reason ?? undefined }),
-        }
+        { method: "POST", body: JSON.stringify({ actor, reason: reason ?? undefined }) }
       );
       if (!ok) {
-        throw new Error(
-          `rejectProposal failed: HTTP ${status} ${JSON.stringify(body)}`
-        );
+        throw new Error(`rejectProposal failed: HTTP ${status} ${JSON.stringify(body)}`);
       }
       return body;
     },
 
     async listPositions() {
-      const { ok, status, body } = await jsonFetch(
-        joinUrl(baseUrl, "/positions")
-      );
-      if (status === 403 || status === 404) {
-        // Paper positions API may still be dark — optional
-        return null;
-      }
-      if (!ok) {
-        throw new Error(`listPositions failed: HTTP ${status}`);
-      }
+      const { ok, status, body } = await jsonFetch(joinUrl(baseUrl, "/positions"));
+      if (status === 403 || status === 404) return null;
+      if (!ok) throw new Error(`listPositions failed: HTTP ${status}`);
       const data = (body as { data?: Position[] })?.data;
       return Array.isArray(data) ? data : [];
     },
 
     async sellPosition(positionId, actor) {
-      // Paper sell propose — API may 403 until positions wired; still post with actor
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/positions/${encodeURIComponent(positionId)}/sell`),
-        {
-          method: "POST",
-          body: JSON.stringify({ actor, mode: "full", paper: true }),
-        }
+        { method: "POST", body: JSON.stringify({ actor, mode: "full", paper: true }) }
       );
       if (!ok) {
-        throw new Error(
-          `sellPosition failed: HTTP ${status} ${JSON.stringify(body)}`
-        );
+        throw new Error(`sellPosition failed: HTTP ${status} ${JSON.stringify(body)}`);
       }
       return body;
+    },
+
+    async getPaperBalance() {
+      const { ok, status, body } = await jsonFetch(
+        joinUrl(baseUrl, "/paper-balance")
+      );
+      if (!ok) throw new Error(`getPaperBalance failed: HTTP ${status}`);
+      const data = (body as { data?: PaperBalance })?.data ?? (body as PaperBalance);
+      return data as PaperBalance;
     },
   };
 }
