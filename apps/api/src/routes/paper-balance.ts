@@ -7,8 +7,8 @@ import { Hono } from "hono";
 import { memBuyWallets } from "./buy-wallets.js";
 import {
   computeUnrealized,
+  getPaperCashEth,
   listOpenPositionsMerged,
-  paperCashEth,
   sumPositionsEthStub,
 } from "../paper-positions-mem.js";
 
@@ -46,7 +46,7 @@ paperBalanceRoutes.get("/", async (c) => {
     };
   });
 
-  const cash = paperCashEth;
+  const cash = getPaperCashEth();
   const positionsEth = sumPositionsEthStub();
   const equity = cash + positionsEth;
 
