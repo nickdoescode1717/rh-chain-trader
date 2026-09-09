@@ -22,3 +22,11 @@ export const LAUNCH_TOPICS = {
   ponsV2TokenLaunched: PONS_V2_TOKEN_LAUNCHED,
   poolsTradeTokenCreated: POOLS_TRADE_TOKEN_CREATED,
 } as const;
+
+/**
+ * ERC20 Transfer(address,address,uint256)
+ * topics[1]=from, topics[2]=to (indexed); amount in data.
+ * Used by watched-wallet poller (to = watched address).
+ */
+export const ERC20_TRANSFER =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" as const;
