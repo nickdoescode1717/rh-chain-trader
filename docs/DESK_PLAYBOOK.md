@@ -261,3 +261,11 @@ Public articles only; sub-$2M early-call bar hard to prove without X timelines (
 3. **Isolated signer** (Desk never holds keys / never signs)
 
 No buys without Nick. **Paper until he says otherwise.** CT/wallet leads remain untrusted alone; pad corroboration only after a lead.
+
+## Position management (future — paper until Nick flips)
+**Nick locked 2026-09-09:** After buys exist, position mgmt path includes:
+- **Large-move alerts** (TG)
+- **Sell buttons** on Telegram
+- Desk **proposals/scores may attach** to those position alerts later (context for hold/trim/exit)
+
+Still **paper until Nick flips**. Desk never signs; sell execution goes through Nick OK → isolated signer same as buys.
