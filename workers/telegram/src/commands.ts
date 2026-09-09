@@ -2,7 +2,7 @@
  * TG text commands + post-approve paper fill delivery helpers.
  */
 
-import type { ApiClient } from "./api.js";
+import type { ApiClient, Position } from "./api.js";
 import {
   formatBalance,
   formatPaperFillSuccess,
@@ -45,6 +45,28 @@ export function fillFromApprove(apiBody: unknown, proposalId: string) {
     buyAddress: s(handoff.buyAddress),
     buyAddressSelection: s(handoff.buyAddressSelection),
     keyModel: s(handoff.keyModel) ?? "single_controlling_key_multi_address",
+  });
+}
+
+/** Catch-up fill from open position row (after TG restart). */
+export function fillFromPosition(pos: Position, proposalId: string) {
+  const s = (v: unknown) => (v == null ? null : String(v));
+  const size = s(pos.size);
+  const sizeEth =
+    size && size.startsWith("eth:") ? size.slice(4) : null;
+  return formatPaperFillSuccess({
+    proposalId,
+    positionId: s(pos.id),
+    status: "approved",
+    size,
+    sizeEth,
+    tokenCA: s(pos.tokenCA) ?? s(pos.tokenAddress),
+    symbol: s(pos.symbol),
+    price: s(pos.entryPrice),
+    next: "signer_handoff_stub",
+    signed: false,
+    txSubmitted: false,
+    keyModel: "single_controlling_key_multi_address",
   });
 }
 
