@@ -58,3 +58,9 @@ button.ghost { background: transparent; color: var(--text); border: 1px solid va
 .discovery-table { overflow-x: auto; }
 .discovery-address { overflow-wrap: anywhere; }
 button:disabled { opacity: .5; cursor: default; }
+.research-form { display: flex; align-items: end; flex-wrap: wrap; gap: 1rem; }
+.research-form label { display: grid; gap: .4rem; }
+input, select { max-width: 100%; }
+.research-form input, select { background: var(--bg); color: var(--text); border: 1px solid var(--border); padding: .5rem; border-radius: 6px; }
+details > summary { cursor: pointer; }
+section { margin-top: 1.25rem; }

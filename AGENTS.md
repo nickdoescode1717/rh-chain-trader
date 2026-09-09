@@ -41,6 +41,11 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Prelaunch project research branch (2026-09-09)**
+- Migration 0007 registers Nick's `tradedotcv` example. Opt-in public homepage/passive subdomain collector, ten-category evidence rubric, optional xAI Grok narrative, `/research/projects` APIs, Grok research handoff and Project research dashboard are implemented; see `docs/PRELAUNCH_RESEARCH.md`.
+- Live public inspection retrieved trade.cv; certificate lookup was unavailable. Initial review is `docs/research/tradedotcv-2026-09-09.md`. No token/deployer identity or legitimacy verified; overall rating withheld for insufficient evidence.
+- Original Grok-primary and Telegram-fallback proposal interfaces remain unchanged. This adds no signer or automated entry/exit. Build/lint and 50 unit/API tests passed; DB integration, live X/xAI and browser interaction still require validation.
+
 **X discovery branch (2026-09-09)**
 - User now wants X/follow-graph discovery leading toward automatic token-launch buys; account selection and spend/mode parameters were requested and remain pending.
 - Added opt-in official X API scanner, persisted post/graph cursors and evidence (migration 0006), `/discovery/*` APIs, and Discovery dashboard. See `docs/X_DISCOVERY.md` for setup and limitations.

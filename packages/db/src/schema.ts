@@ -231,3 +231,16 @@ export const socialSignals = pgTable("social_signals", {
   publishedAt: timestamp("published_at", { withTimezone: true }),
   observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Project research snapshots, separate from trade authorization and token ownership. */
+export const researchProjects = pgTable("research_projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  handle: text("handle").notNull().unique(),
+  domain: text("domain").notNull(),
+  category: text("category").notNull().default("unknown"),
+  enabled: boolean("enabled").notNull().default(true),
+  report: jsonb("report").$type<Record<string, unknown>>(),
+  lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

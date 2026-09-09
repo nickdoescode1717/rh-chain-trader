@@ -14,6 +14,7 @@ import { buyWalletRoutes } from "./routes/buy-wallets.js";
 import { paperBalanceRoutes } from "./routes/paper-balance.js";
 import { positionRoutes } from "./routes/positions.js";
 import { discoveryRoutes } from "./routes/discovery.js";
+import { researchRoutes } from "./routes/research.js";
 
 const app = new Hono();
 
@@ -36,6 +37,7 @@ app.route("/buy-wallets", buyWalletRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
 app.route("/positions", positionRoutes);
 app.route("/discovery", discoveryRoutes);
+app.route("/research", researchRoutes);
 
 app.get("/", (c) =>
   c.json({
@@ -60,6 +62,9 @@ app.get("/", (c) =>
       "/discovery/accounts",
       "/discovery/signals",
       "/discovery/launch-matches",
+      "/research/projects",
+      "/research/projects/:handle",
+      "/research/projects/:handle/grok-handoff",
     ],
   })
 );
