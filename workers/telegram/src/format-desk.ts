@@ -24,12 +24,16 @@ export function num(v: unknown): string {
   return Number.isFinite(n) ? String(n) : str(v);
 }
 
-/** Normalize score to 0-100 (accepts 0-1 confidence) */
-export function toHundred(v: unknown, asConfidence = false): number | null {
+/**
+ * Normalize score to 0-100.
+ * Accepts 0-100 ints OR 0-1 fractions (common in sample payloads).
+ * If 0 < n <= 1, treat as fraction → n*100 (so 0.72 → 72).
+ */
+export function toHundred(v: unknown, _asFractionHint = false): number | null {
   if (v === null || v === undefined || v === "") return null;
   const n = Number(v);
   if (!Number.isFinite(n)) return null;
-  if (asConfidence && n <= 1) return n * 100;
+  if (n > 0 && n <= 1) return n * 100;
   return n;
 }
 
