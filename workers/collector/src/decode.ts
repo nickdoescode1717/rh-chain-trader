@@ -76,6 +76,7 @@ export function decodeUint256(hex: string | null | undefined): string | null {
   if (!hex || hex === "0x") return null;
   try {
     const raw = hex.startsWith("0x") ? hex : "0x" + hex;
+    // Take first 32-byte word if longer
     const word = raw.length >= 66 ? raw.slice(0, 66) : raw;
     return BigInt(word).toString(10);
   } catch {
@@ -83,8 +84,17 @@ export function decodeUint256(hex: string | null | undefined): string | null {
   }
 }
 
-/** Pad address to 32-byte topic (lowercase). */
+/** True only for real 20-byte hex addresses (skips FICTIONAL demo seeds). */
+export function isWatchableAddress(address: string): boolean {
+  const a = address.toLowerCase();
+  return /^0x[0-9a-f]{40}$/.test(a) && !a.includes("fictional");
+}
+
+/** Pad address to 32-byte topic (lowercase). Throws on non-watchable input. */
 export function addressToTopic(address: string): string {
+  if (!isWatchableAddress(address)) {
+    throw new Error(`addressToTopic: invalid hex address: ${address}`);
+  }
   const hex = address.toLowerCase().replace(/^0x/, "");
   return "0x" + hex.padStart(64, "0");
 }
