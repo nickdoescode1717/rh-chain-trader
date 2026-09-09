@@ -1,0 +1,26 @@
+{
+  "name": "@rh/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "echo 'api: no unit tests (use integration later)'"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@rh/core": "workspace:*",
+    "@rh/db": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "hono": "^4.6.14",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
