@@ -1,15 +1,16 @@
 /**
  * Paper-only Telegram AFK worker.
- *
- * Default: TELEGRAM_DRY_RUN=true (or unset) / no TELEGRAM_BOT_TOKEN → logs only.
- * Live poll: TELEGRAM_DRY_RUN=false AND TELEGRAM_BOT_TOKEN set.
- *
+ * Desk-order proposals, post-approve paper fill, /balance buy wallets.
  * Never signs, never loads keys, never submits txs.
- * Approve → API signer_handoff_stub only. Sell buttons = paper propose.
  */
 
 import { createApiClient, type Proposal } from "./api.js";
 import { handleCallback } from "./callbacks.js";
+import {
+  fillFromApprove,
+  handleBalanceCommand,
+  isBalanceCommand,
+} from "./commands.js";
 import {
   formatLargeMoveAlert,
   formatProposal,
@@ -24,7 +25,6 @@ function env(name: string, fallback?: string): string | undefined {
 
 function isDryRun(): boolean {
   const flag = env("TELEGRAM_DRY_RUN", "true");
-  // dry-run unless explicitly false
   if (flag !== "false") return true;
   if (!env("TELEGRAM_BOT_TOKEN")) return true;
   return false;
@@ -44,21 +44,13 @@ const dryBot = dry ? createDryRunBot() : null;
 const notifiedProposals = new Set<string>();
 const alertedPositions = new Set<string>();
 
-async function deliver(
-  text: string,
-  replyMarkup: unknown
-): Promise<void> {
+async function deliver(text: string, replyMarkup?: unknown): Promise<void> {
   if (!CHAT_ID) {
-    console.log(
-      "[telegram] TELEGRAM_CHAT_ID unset — logging message only:\n" + text
-    );
+    console.log("[telegram] TELEGRAM_CHAT_ID unset — logging only:\n" + text);
     return;
   }
-  if (liveBot) {
-    await liveBot.sendMessage(CHAT_ID, text, replyMarkup);
-  } else if (dryBot) {
-    await dryBot.sendMessage(CHAT_ID, text, replyMarkup);
-  }
+  if (liveBot) await liveBot.sendMessage(CHAT_ID, text, replyMarkup);
+  else if (dryBot) await dryBot.sendMessage(CHAT_ID, text, replyMarkup);
 }
 
 async function pollProposals(): Promise<void> {
@@ -66,15 +58,10 @@ async function pollProposals(): Promise<void> {
   try {
     proposals = await api.listProposals();
   } catch (err) {
-    console.warn(
-      "[telegram] listProposals error:",
-      err instanceof Error ? err.message : err
-    );
+    console.warn("[telegram] listProposals error:", err instanceof Error ? err.message : err);
     return;
   }
-
-  const pending = proposals.filter((p) => p.status === "pending_nick");
-  for (const p of pending) {
+  for (const p of proposals.filter((x) => x.status === "pending_nick")) {
     if (notifiedProposals.has(p.id)) continue;
     const msg = formatProposal(p);
     console.log(`[telegram] new pending proposal ${p.id}`);
@@ -82,10 +69,7 @@ async function pollProposals(): Promise<void> {
       await deliver(msg.text, msg.reply_markup);
       notifiedProposals.add(p.id);
     } catch (err) {
-      console.warn(
-        "[telegram] deliver proposal failed:",
-        err instanceof Error ? err.message : err
-      );
+      console.warn("[telegram] deliver proposal failed:", err instanceof Error ? err.message : err);
     }
   }
 }
@@ -95,49 +79,28 @@ async function pollPositionsAlerts(): Promise<void> {
   try {
     positions = await api.listPositions();
   } catch (err) {
-    console.warn(
-      "[telegram] listPositions error:",
-      err instanceof Error ? err.message : err
-    );
+    console.warn("[telegram] listPositions error:", err instanceof Error ? err.message : err);
     return;
   }
-  if (positions == null) {
-    // API dark (403) — expected until paper positions wire-up
-    return;
-  }
-
+  if (positions == null) return;
   for (const pos of positions) {
-    if (pos.status !== "simulated_open" && pos.status !== "alert_fired") {
-      continue;
-    }
+    if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
     const entry = pos.entryPrice != null ? Number(pos.entryPrice) : NaN;
     const mark = pos.currentPrice != null ? Number(pos.currentPrice) : NaN;
-    if (!Number.isFinite(entry) || !Number.isFinite(mark) || entry === 0) {
-      continue;
-    }
+    if (!Number.isFinite(entry) || !Number.isFinite(mark) || entry === 0) continue;
     const pct = ((mark - entry) / entry) * 100;
     if (Math.abs(pct) < LARGE_MOVE_PCT) continue;
     if (alertedPositions.has(pos.id)) continue;
-
     const msg = formatLargeMoveAlert({
       position: pos,
-      trigger: {
-        kind: "pct",
-        value: LARGE_MOVE_PCT,
-        direction: pct >= 0 ? "up" : "down",
-      },
+      trigger: { kind: "pct", value: LARGE_MOVE_PCT, direction: pct >= 0 ? "up" : "down" },
     });
-    console.log(
-      `[telegram] LARGE-move paper alert position=${pos.id} pct=${pct.toFixed(1)}`
-    );
+    console.log(`[telegram] LARGE-move paper alert position=${pos.id} pct=${pct.toFixed(1)}`);
     try {
       await deliver(msg.text, msg.reply_markup);
       alertedPositions.add(pos.id);
     } catch (err) {
-      console.warn(
-        "[telegram] deliver alert failed:",
-        err instanceof Error ? err.message : err
-      );
+      console.warn("[telegram] deliver alert failed:", err instanceof Error ? err.message : err);
     }
   }
 }
@@ -149,26 +112,48 @@ async function processTgUpdates(): Promise<void> {
   }
   const updates = await liveBot.getUpdates(25);
   for (const u of updates) {
+    const msg = u.message;
+    if (msg?.text && isBalanceCommand(msg.text)) {
+      console.log(`[telegram] /balance from ${msg.from?.id ?? "?"}`);
+      try {
+        await handleBalanceCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
+          liveBot.sendMessage(id, text)
+        );
+      } catch (err) {
+        console.warn("[telegram] /balance failed:", err instanceof Error ? err.message : err);
+      }
+      continue;
+    }
+
     const cq = u.callback_query;
     if (!cq?.data) continue;
     const userId = cq.from?.id ?? "unknown";
-    console.log(
-      `[telegram] callback from ${userId}: ${cq.data}`
-    );
+    console.log(`[telegram] callback from ${userId}: ${cq.data}`);
     const result = await handleCallback(api, cq.data, userId);
-    console.log(
-      `[telegram] callback result ok=${result.ok} action=${result.action} ${result.detail}`
-    );
+    console.log(`[telegram] callback result ok=${result.ok} action=${result.action} ${result.detail}`);
     try {
       await liveBot.answerCallbackQuery(
         cq.id,
         result.ok ? result.detail : `Failed: ${result.detail}`
       );
     } catch (err) {
-      console.warn(
-        "[telegram] answerCallbackQuery failed:",
-        err instanceof Error ? err.message : err
-      );
+      console.warn("[telegram] answerCallbackQuery failed:", err instanceof Error ? err.message : err);
+    }
+
+    if (result.ok && result.action === "approve" && result.proposalId) {
+      try {
+        const fill = fillFromApprove(result.apiBody, result.proposalId);
+        await deliver(fill.text);
+        console.log(`[telegram] paper fill receipt sent for ${result.proposalId}`);
+      } catch (err) {
+        console.warn("[telegram] paper fill receipt failed:", err instanceof Error ? err.message : err);
+      }
+    } else if (result.ok && result.action === "reject" && result.proposalId) {
+      try {
+        await deliver(`—— SKIPPED ——\nProposal ${result.proposalId} rejected (paper). No fill.`);
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
@@ -181,12 +166,9 @@ async function tick(): Promise<void> {
 console.log(
   `[telegram] paper AFK worker starting dryRun=${dry} api=${API_BASE_URL} pollMs=${POLL_MS} chatId=${CHAT_ID ? "set" : "unset"}`
 );
-console.log(
-  "[telegram] ENABLE_TRADING must stay false. No keys. Approve → signer_handoff_stub only."
-);
+console.log("[telegram] ENABLE_TRADING must stay false. No keys. Approve → signer_handoff_stub only.");
 
 if (dry) {
-  // One-shot sample format log so dry-run is obvious
   const sample = formatProposal({
     id: "00000000-0000-0000-0000-000000000000",
     tokenCA: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -195,13 +177,9 @@ if (dry) {
     slippageBps: 100,
     leadSource: "ct",
     status: "pending_nick",
-    scores: {
-      opportunity: 72,
-      risk: 48,
-      evidenceConfidence: 0.65,
-      framework: "meme",
-    },
+    scores: { opportunity: 72, risk: 48, evidenceConfidence: 0.65, framework: "meme", symbol: "SAMPLE" },
     rationale: "Dry-run sample — not a real proposal",
+    sources: [{ kind: "ct", handle: "@example", note: "dry-run" }],
   });
   await dryBot!.sendMessage(CHAT_ID ?? "dry-run", sample.text, sample.reply_markup);
 }
@@ -209,25 +187,16 @@ if (dry) {
 await tick();
 
 if (dry) {
-  // Dry-run: loop API poll only (no TG getUpdates)
-  setInterval(() => {
-    void tick();
-  }, POLL_MS);
+  setInterval(() => { void tick(); }, POLL_MS);
   console.log("[telegram] dry-run loop active (API poll only; no Bot API)");
 } else {
-  // Live: long-poll callbacks + periodic proposal/position poll
-  setInterval(() => {
-    void tick();
-  }, POLL_MS);
+  setInterval(() => { void tick(); }, POLL_MS);
   const loop = async () => {
     for (;;) {
       try {
         await processTgUpdates();
       } catch (err) {
-        console.warn(
-          "[telegram] getUpdates error:",
-          err instanceof Error ? err.message : err
-        );
+        console.warn("[telegram] getUpdates error:", err instanceof Error ? err.message : err);
         await new Promise((r) => setTimeout(r, 3000));
       }
     }
