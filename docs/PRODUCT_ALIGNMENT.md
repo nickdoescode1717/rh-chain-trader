@@ -1,0 +1,73 @@
+# Product requirements and implementation alignment
+
+Updated 2026-09-09. This is the requirements checklist derived from Nick's original idea, the structured Grok prompt in the conversation, and his later request for X/follow-graph monitoring and automatic token-launch buys. Use it when planning changes; do not narrow the product to a token table or describe an unimplemented feature as complete.
+
+## Intended product
+
+Find promising new platforms and tokens early in the Robinhood Chain ecosystem. Monitor selected and newly discovered launchpads/protocols, their X activity and relationships, public development evidence, and a curated trader-wallet list. Link platform identity to verified contracts/deployers, investigate the opportunity, distinguish meme from utility tokens, and generate source-backed reports. Move from research to validated paper execution and then policy-controlled live entry and exits.
+
+Robinhood brokerage listings are not evidence of deployment on the target chain. Chain IDs, endpoints, factory addresses, token ownership, and time-sensitive ecosystem claims must be verified against current primary sources/on-chain reads before live use. The repository currently configures chain 4663; historical Markdown claims are not independent verification.
+
+## Reconcile the original and latest instructions
+
+- The original structured prompt starts with explicit approval for each buy and allows sells under rules approved in advance.
+- Nick subsequently requested automatic purchases when monitored platforms launch tokens. Automatic buying is now a target feature, with an optional manual-approval mode, not permanently out of scope.
+- Automatic buying means a previously configured policy authorizes a verified trigger within limits. An X post, a following change, an LLM score, or a newly found address cannot change that policy.
+- Required policy settings remain unresolved: starting accounts/platforms and wallet list, paper/live mode, per-token limit, daily spend/exposure limits, acceptable slippage and launch conditions, and exit rules. Do not invent those values or activate live execution from this checklist.
+- The original 50-wallet idea is an infrastructure question, not an instruction to fund wallets now. Wallets must not be split to evade launch taxes, per-wallet limits, or allowlists. A proposed 5% supply position must be assessed against liquidity and concentration; it is not a default sizing rule. A reported 4x return is not a test expectation or promise.
+
+## Requirements matrix
+
+Statuses describe code on the working PR branches, not a verified deployment.
+
+| Requirement | Code status | Next acceptance condition |
+|---|---|---|
+| Track existing/new launchpads and other protocols, including lending applications | Partial: protocol registry and fixed Pons/pools.trade collectors | Discover/update registry from primary sources; support configurable, verified adapters rather than claiming comprehensive coverage |
+| Read official docs, public repositories, audits, and smart contracts | Missing automated research pipeline | Timestamped sources, summaries, contradictions/unknowns, and reproducible contract evidence per project |
+| Scan X posts and profile/bio changes for monitored accounts | Implemented, unverified live: opt-in official API scanner | Authenticate with funded access; verify real responses, timestamps, paging and restart behavior |
+| Watch following/follower changes, inspect related profiles and then interesting accounts' posts | Partial: completed-snapshot differences and related bio addresses; explicit account registration | Bounded related-account discovery and relevance review; public metrics growth/bot-quality analysis; do not label baseline follows as new |
+| Broad chatter/search and hourly research, with faster launch monitoring | Partial: selected-account polling plus existing RPC polling | Keyword/mention/search coverage, measured freshness and backlogs, streaming/event scheduling where supported; no guaranteed first-50 transaction claim |
+| Find token, factory, and deployer addresses; trace provenance/funding/history | Partial: address extraction and exact matches to recorded launch evidence | Verify official issuer/token relationship, contract creation/factory logs, deployer history and funding links; confidence on clustering, no ownership inference from a tweet |
+| Smart-contract and launch risk review | Partial: simple supplied-input risk heuristics; factory bytecode-presence checks | Inspect permissions, proxies, mint/pause/blacklist, taxes/limits, holders, liquidity and executable buy/sell simulations; critical rejection gates |
+| Public development/subdomain research | Missing | Passive public discovery and the ten development checks below; source-linked, bounded and non-intrusive |
+| Monitor approximately 400 curated trader wallets | Partial: wallet registry and inbound ERC-20 transfer poller | Import the actual list; distinguish swaps/buys/sells from transfers/mints/airdrops, measure realized returns, account for related wallets, costs and survivorship bias |
+| Filter by market cap, liquidity, token age and category | Mostly missing: WATCH_* filters are documented no-ops | Trusted timestamped price/supply/liquidity inputs; enforce filters or explicitly abstain when unavailable |
+| Separate meme and utility scores, plus risk and evidence confidence | Partial: distinct scoring functions, not integrated with comprehensive research | Meme traction/narrative/bot-quality inputs; utility product/usage/value-capture/FDV/unlocks/competition inputs; no invented missing values or automatic investment verdict from a social flag |
+| Report and rank opportunities with source links and time | Partial: evidence storage, UI, proposal payloads, seeded score/report structures | One consolidated project/token report with opportunity/risk/confidence, rationale, market-cap context, source freshness and explicit reject reasons |
+| Automatic entry under approved policy, plus manual approval option | Missing live/policy engine: paper manual proposals and isolated-signer stub exist | Versioned immutable policy, verified triggers/quotes, durable spend reservations, duplicate prevention, expiry/revalidation, signer isolation and paper validation |
+| Automated exits under preapproved rules | Missing: manual paper marks and sell stub; Telegram formatting/alerts only | Tested take-profit/stop/trailing/time/emergency exits; acknowledge failed exits, monitor liquidity, enforce exposure/daily-loss limits and kill switch |
+| Wallet custody/operational infrastructure | Partial public address registry; no actual signer | Choose a supported account/key model, nonce and funding management, scoped signing permissions; secrets never enter research or LLM context |
+| Tests, paper trading and phased deployment | Partial: local unit/API tests and builds | Real provider/DB integration, restart/concurrency/reorg/failed-trade tests and cost-aware historical/live paper evaluation before live activation |
+
+## Ten public development signals to research
+
+1. Documentation history and specificity.
+2. Public repository history and substantive commits.
+3. Releases/changelogs matching shipped features.
+4. Public issue/PR resolution and contributor continuity.
+5. Public subdomains linked from official sources or passive records.
+6. Public development/staging pages with consistent product behavior.
+7. Public API documentation and usable read-only examples.
+8. Tests/build evidence and dependency maintenance.
+9. Contracts matching the documented product, upgrades, and audits.
+10. Observable product usage and credible delivery against prior announcements.
+
+Each can be fabricated or misinterpreted. A dev/staging/API route is supporting evidence only, not proof of legitimacy or protection against a rug. Use passive discovery and ordinary public access; no authentication bypass, secret retrieval, aggressive scanning, or exploitation.
+
+## Execution architecture and acceptance gates
+
+`Discovery → evidence/provenance → contract + market checks → category-specific research/report → policy evaluation → paper/manual/automatic entry → isolated signer → position monitoring → preapproved exit rules`
+
+Collection, analysis and signing must remain separate. The eventual policy engine needs bounded amounts and slippage, atomic budget reservation, per-launch idempotency, current quote/simulation, source/contract freshness, audit trails, and a kill switch. Signer calls must enforce the policy independently of language-model output. Wallet detection alone is never a confirmed trade.
+
+Report and persist separate timestamps for publication, observation, chain block time and verification where available. Missing information remains unknown; no fabricated addresses, prices, wallet performance, score inputs, launch coverage or test results.
+
+## Build order
+
+1. Finish real X + database setup and validate discovery coverage; ingest the user's actual account and wallet lists.
+2. Verify platform/deployer identity and classify wallet swaps; add trusted market data and contract checks.
+3. Add public docs/repository/subdomain research and connect meme/utility scoring to evidence-backed reports.
+4. Build policy-controlled paper entries/exits, durable accounting and failure/restart tests.
+5. Connect isolated live signing only after explicit limits/mode and validated adapters are available.
+
+No feature becomes complete merely because it has a database table, environment variable, placeholder score, stub endpoint or a checkbox in this file. Every PR should name the rows it advances and the remaining acceptance gaps.

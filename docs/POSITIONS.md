@@ -1,6 +1,6 @@
 # Paper Positions — track, alert, sell-propose (phone + AFK)
 
-**Paper only.** `ENABLE_TRADING` / `ENABLE_TX_SUBMISSION` stay `false` until Nick flips policy. No private keys on research VPS, in git, or in the LLM. **Never auto-sell.** Inline Sell uses the **same approval discipline as buys** → isolated signer handoff stub only. Does **not** touch `walletWatcher`.
+**Current implementation: paper only, sell stub.** No private keys on research VPS, in git, or in the LLM. The product target includes automatic exits under rules approved in advance; it does not require a fresh approval for every such exit. See [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md). The historical state-machine design below is not a claim that automatic exits are implemented.
 
 Last updated: 2026-09-09
 

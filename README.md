@@ -1,5 +1,7 @@
 # RH Chain Trader — Phase 1 Research MVP
 
+Product scope and original-prompt coverage: [requirements alignment](docs/PRODUCT_ALIGNMENT.md). The target includes X/launchpad/trader research, separate meme/utility evaluation, policy-controlled automatic entries, and preapproved automated exits. Current execution remains paper only.
+
 Research dashboard for **Robinhood Chain** (chain ID **4663**).
 
 > **Research only.** No live trading, signing, private keys, or transaction submission in production paths.

@@ -25,6 +25,8 @@ export interface RpcLog {
 export interface RpcClient {
   configured: boolean;
   chainId: number;
+  getChainId(): Promise<number | null>;
+  getCode(address: string): Promise<string | null>;
   getBlockNumber(): Promise<number | null>;
   getLogs(filter: LogFilter): Promise<RpcLog[]>;
   /** Fetch logs across [fromBlock, toBlock] inclusive, splitting on RPC range limits. */
@@ -102,6 +104,20 @@ export function createRpcClient(rpcUrl?: string): RpcClient {
   return {
     configured,
     chainId: Number(process.env.CHAIN_ID ?? CHAIN_ID),
+
+    async getChainId() {
+      if (!configured) return null;
+      const result = await rpcCall<string>("eth_chainId", []);
+      if (typeof result !== "string" || !/^0x[0-9a-f]+$/i.test(result)) throw new Error("invalid_chain_id_response");
+      const id = Number(BigInt(result));
+      if (!Number.isSafeInteger(id)) throw new Error("invalid_chain_id_response");
+      return id;
+    },
+
+    async getCode(address) {
+      if (!configured) return null;
+      return rpcCall<string>("eth_getCode", [address, "latest"]);
+    },
 
     async getBlockNumber() {
       if (!configured) {

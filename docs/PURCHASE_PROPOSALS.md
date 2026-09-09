@@ -1,6 +1,6 @@
 # Purchase Proposals — paper approval path (phone-ready)
 
-**Paper only.** `ENABLE_TRADING` / `ENABLE_TX_SUBMISSION` stay `false`. No keys on research box. **Never auto-execute.** Nick must explicitly approve every buy. Isolated signer is out of scope here (interface stub only).
+**Current implementation: paper manual approvals only.** `ENABLE_TRADING` / `ENABLE_TX_SUBMISSION` stay `false`; no keys on the research box. Nick's latest target also includes policy-controlled automatic buying. This document describes the existing manual mode, not a permanent restriction on the target product; see [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md). Isolated signing is still a stub.
 
 Last updated: 2026-09-09
 
