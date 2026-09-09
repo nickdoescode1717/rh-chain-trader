@@ -1,6 +1,6 @@
 /**
  * Desk-order Telegram proposal formatter — plain text (no parse_mode).
- * Order: Header → Thesis → Scores → Sources → Risks → Trade → Ask.
+ * Top: overall /10 + emoji (Desk formula). Then Header → Thesis → Scores → …
  */
 
 import type { Proposal } from "./api.js";
@@ -18,6 +18,7 @@ import {
   str,
   truncate,
 } from "./format-desk.js";
+import { overallRating } from "./format-rating.js";
 
 export type InlineKeyboard = {
   inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
@@ -50,37 +51,40 @@ export function formatProposal(p: Proposal): FormattedMessage {
   );
   const sources = evidenceBullets(p);
   const risks = riskLines(p);
+  const rating = overallRating(scores, p);
 
   const lines = [
-    section("HEADER"),
-    `$ ${symbol}  ·  chain 4663  ·  PAPER`.replace("$ ", "$"),
+    `${rating.line} · $${symbol} · 4663 · 📄 PAPER`,
+    "━━━━━━━━━━━━━━━━━━━━",
+    section("TOKEN", "🪙"),
     `CA: ${ca || "(missing — do not approve)"}`,
     `ID: ${p.id}`,
     `Status: ${str(p.status, "pending_nick")}`,
     "",
-    section("THESIS"),
+    section("THESIS", "📌"),
     thesis,
     `Lead: ${lead}${extra ? ` · ${extra}` : ""}`,
     `Framework: ${fw} (meme ≠ utility)`,
     "",
-    section("SCORES"),
+    section("SCORES", "📊"),
     `Opportunity: ${scoreDisplay(scores?.opportunity)}${scoreWhy(scores, "opportunity")}`,
     `Risk: ${scoreDisplay(scores?.risk)}${scoreWhy(scores, "risk")}`,
-    `Evidence-confidence: ${scoreDisplay(scores?.evidenceConfidence ?? scores?.evidence, true)}${scoreWhy(scores, "evidenceConfidence")}`,
+    `Evidence: ${scoreDisplay(scores?.evidenceConfidence ?? scores?.evidence, true)}${scoreWhy(scores, "evidenceConfidence")}`,
+    `Overall: ${rating.line}  (opp×(1−risk)×evidence)`,
     "",
-    section("SOURCES"),
+    section("SOURCES", "🔗"),
     ...(sources.length ? sources : ["• (none — do not trust CT alone)"]),
     "",
-    section("RISKS"),
+    section("RISKS", "⚠️"),
     ...risks,
     "",
-    section("TRADE"),
+    section("TRADE", "💸"),
     `Size: ${sizeLine(p)}`,
     `Slippage: ${p.slippageBps ?? "-"} bps`,
     `Exits: ${exitsLine(p)}`,
     `Route/pair: ${route}`,
     "",
-    section("ASK"),
+    section("ASK", "✅"),
     "Approve (paper) or Skip. No keys. No live tx.",
   ];
 
@@ -89,8 +93,8 @@ export function formatProposal(p: Proposal): FormattedMessage {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: "Approve (paper)", callback_data: `approve:${p.id}` },
-          { text: "Skip", callback_data: `reject:${p.id}` },
+          { text: "✅ Approve (paper)", callback_data: `approve:${p.id}` },
+          { text: "⏭ Skip", callback_data: `reject:${p.id}` },
         ],
       ],
     },
