@@ -126,3 +126,21 @@ Docker init and in-memory fallback load **FICTIONAL** tokens/evidence clearly la
 ## License
 
 Private / internal research tooling. Not investment advice.
+
+## Always-on (Hetzner)
+
+Phase 1 collectors should run 24/7 on a small VPS (not serverless).
+
+See **[deploy/hetzner-setup.md](deploy/hetzner-setup.md)** for:
+- CX22 (or similar) sizing
+- firewall / DNS / Docker install
+- `deploy/docker-compose.prod.yml` + Caddy TLS
+- RPC notes (Alchemy etc.)
+
+Quick start on the server:
+
+```bash
+cp deploy/.env.prod.example .env
+# edit .env + deploy/caddy/Caddyfile
+docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d --build
+```
