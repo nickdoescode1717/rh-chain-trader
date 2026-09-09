@@ -1,6 +1,7 @@
 import { createRpcClient } from "./rpc.js";
 import { runListenerLoop } from "./listener.js";
 import { runWalletWatcherLoop } from "./walletWatcher.js";
+import { runSocialLoop } from "./social/index.js";
 
 // Paper / research only — never honor trading or tx submission flags.
 if (
@@ -15,4 +16,4 @@ if (
 const rpc = createRpcClient();
 
 // Factory launch ingest (corroboration) + watched-wallet Transfer poller (empty-ready).
-await Promise.all([runListenerLoop(rpc), runWalletWatcherLoop(rpc)]);
+await Promise.all([runListenerLoop(rpc), runWalletWatcherLoop(rpc), runSocialLoop()]);

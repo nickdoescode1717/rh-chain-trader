@@ -13,6 +13,7 @@ import { purchaseProposalRoutes } from "./routes/purchase-proposals.js";
 import { buyWalletRoutes } from "./routes/buy-wallets.js";
 import { paperBalanceRoutes } from "./routes/paper-balance.js";
 import { positionRoutes } from "./routes/positions.js";
+import { discoveryRoutes } from "./routes/discovery.js";
 
 const app = new Hono();
 
@@ -34,6 +35,7 @@ app.route("/purchase-proposals", purchaseProposalRoutes);
 app.route("/buy-wallets", buyWalletRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
 app.route("/positions", positionRoutes);
+app.route("/discovery", discoveryRoutes);
 
 app.get("/", (c) =>
   c.json({
@@ -55,6 +57,9 @@ app.get("/", (c) =>
       "/buy-wallets",
       "/paper-balance",
       "/positions",
+      "/discovery/accounts",
+      "/discovery/signals",
+      "/discovery/launch-matches",
     ],
   })
 );

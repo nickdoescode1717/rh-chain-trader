@@ -1,6 +1,6 @@
 # Buy wallets & isolated signer (Nick architecture)
 
-**Locked 2026-09-09.**
+**Historical account-model proposal; not an implemented or verified custody architecture.** A single ordinary EOA private key does not produce multiple independent EOA addresses. Multiple addresses require a defined model such as derived keys under an isolated seed or supported smart accounts. Resolve this before implementing a signer; do not treat the stub's `keyModel` label as proof. Current scope: [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md).
 
 ## Model
 

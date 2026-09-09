@@ -20,6 +20,7 @@ import {
   type Db,
 } from "@rh/db";
 import type { RpcClient, RpcLog } from "./rpc.js";
+import { verifyContractPresence } from "./verify-contract.js";
 import { blockscoutTokenUrl, blockscoutTxUrl } from "./rpc.js";
 import {
   LAUNCH_POLL_SOURCES,
@@ -99,7 +100,7 @@ async function fetchErc20Meta(
   return { name, symbol, decimals };
 }
 
-async function ensureProtocolsVerified(db: Db) {
+async function ensureProtocolsVerified(db: Db, rpc: RpcClient) {
   const updates: Array<{ slug: string; factoryAddress: string; notes: string }> = [
     {
       slug: "uniswap",
@@ -122,12 +123,13 @@ async function ensureProtocolsVerified(db: Db) {
   ];
 
   for (const u of updates) {
+    const check = await verifyContractPresence(rpc, u.factoryAddress, CHAIN_ID);
     await db
       .update(protocols)
       .set({
         factoryAddress: u.factoryAddress,
-        verifiedOnchain: true,
-        notes: u.notes,
+        verifiedOnchain: check.present,
+        notes: `Collector check ${new Date().toISOString()}: ${check.reason}. Configured registry address; bytecode presence does not establish source verification, protocol identity, or contract safety.`,
       })
       .where(eq(protocols.slug, u.slug));
   }
@@ -171,7 +173,7 @@ async function upsertLaunch(
       symbol: meta.symbol,
       name: meta.name,
       decimals: meta.decimals,
-      category: "meme",
+      category: "unknown", // A launchpad event does not determine meme versus utility.
       chainId,
       description: `On-chain launch via ${source.label}`,
       isWatchlisted: false,
@@ -235,7 +237,6 @@ async function upsertLaunch(
           source.protocolSlug === "pools-trade"
             ? POOLS_TRADE_ENTRY_CURRENT
             : source.address,
-        verifiedOnchain: true,
       })
       .where(eq(protocols.id, proto.id));
   }
@@ -266,8 +267,8 @@ export async function runListenerLoop(rpc: RpcClient, intervalMs?: number) {
   if (process.env.DATABASE_URL) {
     try {
       db = createDb(process.env.DATABASE_URL);
-      await ensureProtocolsVerified(db);
-      console.log("[collector] DATABASE_URL connected; protocols marked verifiedOnchain");
+      await ensureProtocolsVerified(db, rpc);
+      console.log("[collector] DATABASE_URL connected; protocol bytecode presence checked");
     } catch (err) {
       console.warn(
         "[collector] DATABASE_URL present but connect failed — logging only:",

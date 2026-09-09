@@ -203,3 +203,31 @@ export type Score = typeof scores.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type PurchaseProposal = typeof purchaseProposals.$inferSelect;
 export type Position = typeof positions.$inferSelect;
+
+/** X discovery is evidence collection only; these records never authorize orders. */
+export const socialAccounts = pgTable("social_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  handle: text("handle").notNull().unique(),
+  xUserId: text("x_user_id").unique(),
+  label: text("label"),
+  enabled: boolean("enabled").notNull().default(true),
+  watchFollowing: boolean("watch_following").notNull().default(true),
+  watchFollowers: boolean("watch_followers").notNull().default(false),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull().default({}),
+  lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const socialSignals = pgTable("social_signals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  accountId: uuid("account_id").notNull().references(() => socialAccounts.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull().unique(),
+  kind: text("kind").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  text: text("text").notNull(),
+  addresses: jsonb("addresses").$type<string[]>().notNull().default([]),
+  metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull().default({}),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+});

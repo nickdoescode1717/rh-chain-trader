@@ -3,6 +3,7 @@ import { TokensPage } from "./pages/TokensPage";
 import { TokenDetailPage } from "./pages/TokenDetailPage";
 import { WatchlistPage } from "./pages/WatchlistPage";
 import { ProtocolsPage } from "./pages/ProtocolsPage";
+import { DiscoveryPage } from "./pages/DiscoveryPage";
 
 export function App() {
   return (
@@ -13,12 +14,14 @@ export function App() {
         <Link to="/">Tokens</Link>
         <Link to="/watchlist">Watchlist</Link>
         <Link to="/protocols">Protocols</Link>
+        <Link to="/discovery">Discovery</Link>
       </nav>
       <Routes>
         <Route path="/" element={<TokensPage />} />
         <Route path="/tokens/:id" element={<TokenDetailPage />} />
         <Route path="/watchlist" element={<WatchlistPage />} />
         <Route path="/protocols" element={<ProtocolsPage />} />
+        <Route path="/discovery" element={<DiscoveryPage />} />
       </Routes>
       <p className="muted" style={{ marginTop: "2rem", fontSize: "0.85rem" }}>
         Chain ID 4663 · Blockscout{" "}

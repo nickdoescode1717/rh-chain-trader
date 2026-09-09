@@ -1,5 +1,7 @@
 # RH Chain Trader — Phase 1 Research MVP
 
+Product scope and original-prompt coverage: [requirements alignment](docs/PRODUCT_ALIGNMENT.md). The target includes X/launchpad/trader research, separate meme/utility evaluation, policy-controlled automatic entries, and preapproved automated exits. Current execution remains paper only.
+
 Research dashboard for **Robinhood Chain** (chain ID **4663**).
 
 > **Research only.** No live trading, signing, private keys, or transaction submission in production paths.
@@ -49,6 +51,8 @@ Services:
 On first boot, Postgres runs `packages/db/drizzle/0000_init.sql` then **FICTIONAL** seed `0001_seed_fictional.sql`.
 
 API health: `curl http://localhost:3001/health`
+
+X discovery: the `/discovery` dashboard manages monitored accounts and shows social evidence and launch matches. Collection is opt-in (`X_DISCOVERY_ENABLED=false` by default). See [X discovery setup and limitations](docs/X_DISCOVERY.md). Automatic purchases are not yet connected.
 
 Run the web UI locally against Compose API:
 

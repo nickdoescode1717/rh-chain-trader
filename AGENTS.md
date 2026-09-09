@@ -1,24 +1,25 @@
 # AGENTS.md — rh-chain-trader
 
-Handoff for any AI/coding agent continuing this repo. **Paper research only.** No secrets in git or LLM context.
+Handoff for any AI/coding agent continuing this repo. Current execution is paper only; the target includes policy-controlled automatic buys and preapproved automated sells. No secrets in git or LLM context. **Read `docs/PRODUCT_ALIGNMENT.md` as the current requirements and coverage checklist.**
 
 ## 1. Product north star + HARD RULES
 
 **North star:** Find early opportunities on **Robinhood Chain (chain ID 4663)** from:
 1. **Crypto Twitter** — new platforms gaining traction that launch *their own* token (Crumbs / early-Pons / STONK class)
 2. **Watched-wallet buys** — curated elite wallets (Nick pastes list; empty-ready until then)
+3. **Launchpad/protocol research** — existing and newly discovered platforms, official docs/contracts, and public development evidence.
 
-Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / risk / evidence-confidence + sources) → escalate clears only → **Nick explicit buy approval** → isolated signer.
+Then: evidence/provenance + market/contract checks → separate meme/utility opportunity, risk and evidence-confidence → report → manual approval or policy-controlled automatic entry → isolated signer → preapproved exit rules. The current code supports only paper manual proposals and a signer stub.
 
 **HARD RULES**
-- **NOT** an every-launch / pad-firehose product. Pad factories (Pons, pools.trade, etc.) = **corroboration** after a CT or wallet lead — never the primary feed.
+- Launchpad/protocol discovery, X research and curated wallets are all in scope. Prioritize relevant platform launches; never equate a factory event with authorization to buy every token.
 - **CT + watched wallets** are co-equal lead sources.
 - **Meme ≠ utility** scoring frameworks.
 - **Paper only** until Nick flips policy: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`.
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
 - Approval path: **Grok Bot primary**; **Telegram fallback** (same proposal payload; TG not required for MVP).
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- No X scraping; paid X API later when Nick funds.
+- No X scraping. An opt-in official X API scanner exists; live access and funding are not yet validated.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
@@ -26,7 +27,7 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 | Piece | Role |
 |-------|------|
 | **Hetzner VPS** | Docker Compose: Postgres, API, collector, optional Caddy |
-| **API** | Hono — research endpoints; paper `/purchase-proposals` allowed; `/orders` `/positions` still 403 until paper positions wire-up |
+| **API** | Hono research + `/discovery/*`, paper proposals and positions; `/orders` 403, paper sell 501 stub |
 | **Collector** | Read-only RPC (`eth_getLogs` / `eth_call`); factory ingest + wallet Transfer poller |
 | **Tunnel** | Desk/agents reach API at `http://127.0.0.1:13001` (not public `:3001`) |
 | **Repo** | `apps/api`, `apps/web`, `packages/core`, `packages/db`, `workers/collector`, `workers/telegram`, `docs/`, `deploy/` |
@@ -39,6 +40,11 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**X discovery branch (2026-09-09)**
+- User now wants X/follow-graph discovery leading toward automatic token-launch buys; account selection and spend/mode parameters were requested and remain pending.
+- Added opt-in official X API scanner, persisted post/graph cursors and evidence (migration 0006), `/discovery/*` APIs, and Discovery dashboard. See `docs/X_DISCOVERY.md` for setup and limitations.
+- Execution is not implemented by discovery. No live signing, spending, or automatic wallet enrollment. Activation requires configured accounts, X access, explicit purchase policy, and verified execution adapters.
 
 **Codex paper-workflow fixes (2026-09-09 branch)**
 - Paper `/positions` routes are wired (the older backlog notes below are stale); live sells remain a 501 stub.
@@ -56,24 +62,25 @@ Then: Desk DD → score (separate **meme vs utility** frameworks: opportunity / 
 
 **In flight / blocked**
 - Collector **`walletWatcher`** Transfer poller — on main; Infra rebuild as needed (empty list = no-op healthy)
-- Paper **positions** API wire-up (doc ready; routes still 403)
+- Paper positions are wired; live execution, automatic entries/exits and integration validation remain incomplete
 - Platform registry / DD gate — after wallet MVP or when Nick picks
 
 ## 4. Backlog priority
 
-1. Infra rebuild collector with wallet watcher on VPS (empty list = no-op healthy)
-2. Wire **Grok Bot** approve UX against `/purchase-proposals` (TG paper worker already in `workers/telegram/`)
-3. Paper **positions** API (`docs/POSITIONS.md`) — track / alerts / sell-propose; keep `/orders` live dark
-4. **Isolated signer** handoff contract (no keys on research box)
-5. **X** discovery integration when Nick funds API/vendor
-6. Platform registry + scoped listen (not firehose)
+1. Validate X/DB discovery and configure the actual monitored accounts/wallets.
+2. Platform/deployer provenance, wallet swap classification, market data and contract checks.
+3. Public docs/repos/subdomains + evidence-backed meme/utility scoring and reports.
+4. Policy-controlled paper entry/exit, durable limits, accounting and restart/failure validation.
+5. Isolated live signer/adapters after the user's spend limits, mode and exit policy are specified.
+6. Keep Grok primary and Telegram fallback interfaces compatible with the resulting reports/policy.
 
 ### Next / tools
 - Opt-in live Telegram long-poll on VPS (`TELEGRAM_DRY_RUN=false` + bot token in secret store only); keep paper-only — no live sells
 
 ## 5. Key docs / paths
 
-- `docs/DESK_PLAYBOOK.md` — Desk SOP, Crumbs pattern, scoring, buy path
+- `docs/PRODUCT_ALIGNMENT.md` — current product scope, full requirements matrix, acceptance gaps and implementation order
+- `docs/DESK_PLAYBOOK.md` — historical Desk SOP, Crumbs pattern, scoring, buy path; current alignment checklist supersedes conflicting scope limits
 - `docs/CT_ALPHA_WATCHLIST.md` — CT alpha accounts SoT (separate from on-chain wallets)
 - `docs/PURCHASE_PROPOSALS.md` — phone-ready paper proposal payload + state machine + TG worker
 - `docs/POSITIONS.md` — paper positions / LARGE-move alerts / sell-propose (no live sells)
@@ -111,7 +118,7 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ## 8. Do-nots
 
 - Do not enable live trading or put keys on the research VPS
-- Do not build pad-firehose / every-`TokenLaunched` UX
+- Do not buy every factory launch or substitute raw launch/address matches for project verification
 - Do not scrape X; do not treat social as trade authorization
 - Do not confuse RH Chain tokens with brokerage listings
 - Do not wait on Nick for ordinary paper ships (standing overnight auth) — escalate only for live trading, spend, secrets policy changes, or leaving these limits

@@ -1,7 +1,8 @@
 # Robinhood Chain Research & Trading Agent — Technical Specification
 
-**Status:** Draft v0.1 (2026-09-08, America/Toronto)  
-**Scope:** Research automation → human-approved buys → rule-based sells  
+**Status:** Historical, incomplete draft v0.1 (2026-09-08). Current requirements, superseding scope changes and implementation status are in [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md). Historical ecosystem/access claims below have not been reverified by the latest code review.
+
+**Current target scope:** Research automation → manual or policy-controlled automatic buys → preapproved rule-based sells. Implementation remains paper only.
 **Primary chain:** Robinhood Chain mainnet (chain ID `4663`)
 
 ---
@@ -18,7 +19,7 @@ Build a **research-first crypto agent** that:
 6. Automates sells **only** under rules you pre-approve; keys and signing stay **outside** any language model.
 7. Treats websites, docs, and social posts as **untrusted data** that cannot override trading rules or authorize transactions.
 
-Fully autonomous buying is **out of scope** until paper trading and validation succeed.
+Automatic buying is now a requested target feature, following Nick's 2026-09-09 instruction. The older per-buy-approval description above describes the initial mode; configured automatic mode and preapproved exits require policy, paper validation and isolated execution before activation.
 
 This is **not**:
 

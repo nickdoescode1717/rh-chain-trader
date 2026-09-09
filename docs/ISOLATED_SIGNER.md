@@ -1,6 +1,6 @@
 # Isolated signer handoff — single key, multi-address
 
-**Locked 2026-09-09 (Nick).** Paper until `ENABLE_TRADING`. See also `docs/BUY_WALLETS.md`.
+**Historical stub proposal.** Paper execution only. The multi-address custody model below is unresolved; one ordinary EOA key controls one EOA address, so a supported derivation/smart-account design is required. The latest product supports manual or policy-controlled automatic entry, plus preapproved exits. See [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md) and [BUY_WALLETS.md](BUY_WALLETS.md).
 
 ## Goals
 

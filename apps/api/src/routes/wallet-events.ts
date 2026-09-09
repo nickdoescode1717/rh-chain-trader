@@ -12,6 +12,8 @@ export const walletEventRoutes = new Hono();
 
 /** Desk wallet-event / lead JSON shape (exact field names). */
 export interface DeskWalletEvent {
+  eventType: string;
+  buyVerified: false;
   leadSource: "watched_wallet";
   wallet: string;
   walletLabel: string | null;
@@ -41,12 +43,13 @@ walletEventRoutes.get("/", async (c) => {
           new Date(b.observedAt).getTime() - new Date(a.observedAt).getTime()
       )
       .slice(0, limit);
-    return c.json({ data, source: "memory" });
+    return c.json({ data: data.map((row) => ({ ...row, eventType: "unclassified", buyVerified: false })), source: "memory" });
   }
 
   const rows = await db
     .select({
       amount: walletEvents.amount,
+      eventType: walletEvents.eventType,
       txHash: walletEvents.txHash,
       blockNumber: walletEvents.blockNumber,
       metadata: walletEvents.metadata,
@@ -68,6 +71,8 @@ walletEventRoutes.get("/", async (c) => {
       ? (meta.otherWatchedOnToken as string[])
       : [];
     return {
+      eventType: r.eventType,
+      buyVerified: false,
       leadSource: "watched_wallet" as const,
       wallet: r.wallet,
       walletLabel: r.walletLabel ?? null,

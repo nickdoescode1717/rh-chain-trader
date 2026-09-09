@@ -1,5 +1,7 @@
 # Architecture — Robinhood Chain Research Agent (Phase 1)
 
+This is a historical Phase 1 overview. For the complete current product target and actual coverage, read [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md). Paper proposals/positions and X discovery now exist; automated research, live entry and exits remain incomplete. Historical verification/deployment claims below are not current test results.
+
 ## Goal
 
 Phase 1 is a **research dashboard MVP** for Robinhood Chain (chain ID **4663**).
