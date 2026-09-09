@@ -23,13 +23,28 @@
 3. Revalidate → hand off to **isolated signer** (one key, pick buy address)
 4. Signer returns receipt; research stack records paper/live status
 
+Details: **`docs/ISOLATED_SIGNER.md`** (handoff payload stub on Approve).
+
 ## Current stubs
 
 | Surface | Behavior |
 |---------|----------|
-| `POST /buy-wallets` | Register address + label (`buy`\|`funding`); no key field accepted |
-| `GET /buy-wallets` | List registered addresses |
+| `POST /buy-wallets` | Register address + label (`buy`\|`funding`); rejects `key`/`privateKey` |
+| `GET /buy-wallets` | List registered addresses (`keyModel` noted) |
 | `GET /paper-balance` | Paper cash + positions + buy wallets (`nativeEth` rpc_pending until RPC wired) |
 | TG `/balance` | Formats paper-balance; excludes watched wallets |
+| Approve response `signerHandoff` | Paper stub: candidates + optional buyAddress; never signs |
 
 Watched-wallet list (`/watched-wallets`) remains a separate alpha radar — never Nick’s buy purse.
+
+## Registering addresses
+
+When Nick is ready, paste **public** buy addresses only:
+
+```bash
+curl -X POST http://127.0.0.1:13001/buy-wallets \
+  -H 'Content-Type: application/json' \
+  -d '{"address":"0x…","label":"main","kind":"buy"}'
+```
+
+No key fields. Empty registry is OK — handoff stub returns `buyAddress: null`.
