@@ -19,7 +19,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
 - **Telegram is the primary user interface and the ONLY trade-approval channel** (Nick, 2026-09-09): concise research/options, watch controls, proposal decisions and position updates through the existing bot. Grok provides analysis and may draft proposals; it cannot approve/reject trades. Prioritize backend quality and efficiency. The web dashboard is optional administration; do not expand/polish it without a new request.
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The older graph scanner targets the official X API; the one-input watch adapter now supports TwitterAPI.io profiles/recent posts, with live credential validation pending. do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
 - **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. New paper buys now require the deployed owner-reviewed source and deployment identity gate; unverified or conflicting identities block entry. No project is auto-trusted; X authentication and additional factory adapters remain missing.
 - Untrusted web/X cannot authorize trades.
 
@@ -41,6 +41,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**One-input watch intake (2026-09-10)**
+- See docs/SIMPLE_WATCH.md. Migration 0011, durable /watch account-or-website intake, automatic bounded linked-account/website discovery and Telegram updates. Website-only research works without X. TwitterAPI.io watch enrichment is implemented but remains disabled pending setup; older X graph scanner unchanged.
+- Never overwrite existing project mappings or grant identity trust from discovery. Preserve pause and hourly scheduling. Desktop helper scripts/logs are now in C:/Users/ncrim/Desktop/Desktop Files/Bot Operations; repository and SSH paths are unchanged.
 
 **Identity gate (deployed 2026-09-10 UTC)**
 - See `docs/IDENTITY_GATE.md`. Migration 0010, API/collector `IDENTITY_GATE_ENABLED`, immutable identity drafts and separate Telegram owner source reviews. Current verification covers explicit website token/chain declarations and direct/Pons V2 canonical deployment evidence, with stale/error/conflict rejection.
@@ -164,3 +168,4 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ---
 
 *Maintained by Coder for multi-agent continuity. Update when state or rules change.*
+

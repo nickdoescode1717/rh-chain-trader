@@ -305,3 +305,15 @@ export const identityReviews = pgTable("identity_reviews", {
   sourceHash: text("source_hash").notNull(), actor: text("actor").notNull(), status: text("status").notNull().default("pending"),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
+
+/** Durable one-input research intake. Discoveries never grant issuer trust. */
+export const watchTargets = pgTable("watch_targets", {
+  id: uuid("id").defaultRandom().primaryKey(), inputKey: text("input_key").notNull().unique(),
+  handle: text("handle"), domain: text("domain"),
+  projectHandle: text("project_handle").references(() => researchProjects.handle),
+  enabled: boolean("enabled").notNull().default(true), revision: integer("revision").notNull().default(0),
+  status: text("status").notNull().default("queued"),
+  discovery: jsonb("discovery").$type<Record<string, unknown>>(), report: jsonb("report").$type<Record<string, unknown>>(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }), lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

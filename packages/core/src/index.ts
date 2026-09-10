@@ -7,3 +7,4 @@ export * from "./research.js";
 export * from "./market.js";
 export * from "./paper-execution.js";
 export * from "./identity.js";
+export * from "./watch.js";

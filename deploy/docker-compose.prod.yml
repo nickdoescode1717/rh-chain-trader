@@ -25,6 +25,7 @@ services:
       - ../packages/db/drizzle/0008_market_pricing.sql:/docker-entrypoint-initdb.d/0008_market_pricing.sql:ro
       - ../packages/db/drizzle/0009_paper_ledger.sql:/docker-entrypoint-initdb.d/0009_paper_ledger.sql:ro
       - ../packages/db/drizzle/0010_identity_gate.sql:/docker-entrypoint-initdb.d/0010_identity_gate.sql:ro
+      - ../packages/db/drizzle/0011_watch_intake.sql:/docker-entrypoint-initdb.d/0011_watch_intake.sql:ro
     # localhost only — never expose publicly
     ports:
       - "127.0.0.1:5432:5432"
@@ -73,6 +74,8 @@ services:
       RPC_URL: ${RPC_URL:-}
       X_DISCOVERY_ENABLED: ${X_DISCOVERY_ENABLED:-false}
       X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
+      WATCH_X_ENABLED: ${WATCH_X_ENABLED:-false}
+      TWITTERAPI_IO_KEY: ${TWITTERAPI_IO_KEY:-}
       X_POLL_MS: ${X_POLL_MS:-300000}
       X_ACCOUNTS_PER_TICK: ${X_ACCOUNTS_PER_TICK:-1}
       X_GRAPH_INTERVAL_MS: ${X_GRAPH_INTERVAL_MS:-3600000}

@@ -1,17 +1,20 @@
 import { Hono } from "hono";
-import { desc, eq } from "drizzle-orm";
-import { researchProjects, socialAccounts } from "@rh/db";
+import { desc, eq, sql } from "drizzle-orm";
+import { researchProjects, socialAccounts, watchTargets } from "@rh/db";
+import { watchRoutes } from "./watches.js";
 import { normalizePublicDomain } from "@rh/core";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
 
 export const researchRoutes = new Hono();
+researchRoutes.route("/watches", watchRoutes);
 const handleOf = (value: string) => value.trim().replace(/^@/, "").toLowerCase();
 
 researchRoutes.get("/projects", async (c) => {
   const db = getDb();
   if (!db) return c.json({ error: "research_requires_postgres", data: [] }, 503);
   const rows = await db.select({ id: researchProjects.id, handle: researchProjects.handle, domain: researchProjects.domain,
+    watchManaged: sql<boolean>`exists(select 1 from ${watchTargets} where ${watchTargets.projectHandle} = ${researchProjects.handle} and ${watchTargets.enabled} = true)`,
     category: researchProjects.category, enabled: researchProjects.enabled, lastResearchedAt: researchProjects.lastResearchedAt,
     lastError: researchProjects.lastError }).from(researchProjects).orderBy(desc(researchProjects.createdAt));
   return c.json({ data: rows, paperOnly: true });
@@ -64,9 +67,11 @@ researchRoutes.post("/projects/:handle/monitoring", async (c) => {
   const db = getDb();
   if (!db) return c.json({ error: "research_requires_postgres" }, 503);
   const row = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(4663, 9011)`);
     const [saved] = await tx.update(researchProjects).set({ enabled: body.enabled as boolean })
       .where(eq(researchProjects.handle, handle)).returning();
     if (saved) await tx.update(socialAccounts).set({ enabled: body.enabled as boolean }).where(eq(socialAccounts.handle, handle));
+    if (saved) await tx.update(watchTargets).set({ enabled: body.enabled as boolean, revision: sql`${watchTargets.revision} + 1` }).where(eq(watchTargets.projectHandle, handle));
     return saved;
   });
   if (!row) return c.json({ error: "project_not_found" }, 404);

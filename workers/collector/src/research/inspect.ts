@@ -27,10 +27,10 @@ export function publicText(html: string): string {
   return html.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
     .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 12_000);
 }
-export async function inspectProject(input: { handle: string; domain: string; category: string },
+export async function inspectProject(input: { handle: string | null; domain: string; category: string },
   read: typeof readPublicPage = readPublicPage, now = new Date()) {
   const root = normalizeDomain(input.domain);
-  if (!/^[a-zA-Z0-9_]{1,15}$/.test(input.handle)) throw new Error("invalid_handle");
+  if (input.handle !== null && !/^[a-zA-Z0-9_]{1,15}$/.test(input.handle)) throw new Error("invalid_handle");
   const evidence: ProjectEvidence[] = [], checks: ProjectCheck[] = [], errors: string[] = [];
   const add = (url: string, kind: string, finding: string) => {
     const id = `e${evidence.length + 1}`; evidence.push({ id, url, kind, finding, observedAt: now.toISOString() }); return id;
@@ -63,7 +63,7 @@ export async function inspectProject(input: { handle: string; domain: string; ca
           explanation: "A discovered public service returned content. Weak development evidence only; may be a template, wildcard page, or unrelated service." });
     } catch { surfaces.push({ host, discovery, reachable: false, status: null }); }
   }
-  return { version: 1, project: { handle: input.handle.toLowerCase(), domain: root, category: input.category },
+  return { version: 1, project: { handle: input.handle?.toLowerCase() ?? null, domain: root, category: input.category },
     researchedAt: now.toISOString(), evidence, rating: rateProject(checks, evidence),
     subdomains: { discovered: hosts.length, inspected: surfaces, truncated: hosts.length > 8, errors },
     launchReadiness: projectLaunchReadiness({}),

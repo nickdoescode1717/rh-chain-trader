@@ -98,6 +98,10 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  listWatches: () => Promise<WatchTarget[]>;
+  getWatch: (id: string) => Promise<WatchTarget>;
+  addWatch: (input: string, actor: string) => Promise<WatchTarget>;
+  monitorWatch: (id: string, enabled: boolean, actor: string) => Promise<WatchTarget>;
   identityProject: (handle:string) => Promise<IdentityProject>;
   identityClaim: (id:string) => Promise<{claim:IdentityClaim;verdict:IdentityVerdict}>;
   draftIdentityClaim: (body:{projectHandle:string;tokenAddress:string;deployerAddress:string;creationTxHash:string;sourceUrl:string}) => Promise<IdentityClaim>;
@@ -142,8 +146,17 @@ export type ResearchReport = {
   grok?: { status: string; analysis: { summary: string; concerns: string[]; missingEvidence: string[] } | null };
 };
 export type ResearchProject = {
+  watchManaged?: boolean;
   id: string; handle: string; domain: string; category: string; enabled: boolean;
   lastResearchedAt: string | null; lastError: string | null; report?: ResearchReport | null;
+};
+export type WatchTarget = {
+  id: string; inputKey: string; handle: string | null; domain: string | null; projectHandle: string | null;
+  enabled: boolean; status: string; lastAttemptAt: string | null; lastError: string | null; report: ResearchReport | null;
+  discovery: { observedAt: string; primaryHandle: string | null; domain: string | null;
+    accounts: { handle: string; sourceUrl: string; relation: string; description?: string }[];
+    domains: { domain: string; sourceUrl: string }[]; links: { url: string; kind: string; sourceUrl: string }[];
+    addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
 };
 
 function joinUrl(base: string, path: string): string {
@@ -203,6 +216,10 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
   }
   return {
     baseUrl,
+    listWatches: () => research("watches"),
+    getWatch: id => research(`watches/${encodeURIComponent(id)}`),
+    addWatch: (input, actor) => watchMutation("", { input, actor }),
+    monitorWatch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/monitoring`, { enabled, actor }),
     identityProject: handle=>identity(`projects/${encodeURIComponent(handle)}`),
     identityClaim: id=>identity(`claims/${encodeURIComponent(id)}`),
     draftIdentityClaim: body=>identity("claims",body),
@@ -277,4 +294,11 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
       return data as PaperBalance;
     },
   };
+  async function watchMutation(path: string, body: unknown): Promise<WatchTarget> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/research/watches${path}`), {
+      method: "POST", headers: decisionHeaders(), body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`research_http_${r.status}`);
+    return (r.body as { data: WatchTarget }).data;
+  }
 }

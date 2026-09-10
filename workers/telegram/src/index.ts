@@ -27,6 +27,7 @@ import { handlePortfolioCallback } from "./portfolio.js";
 import { handlePaperCallback } from "./paper-trading.js";
 import { handleIdentityInput } from "./identity.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
+import { createWatchAlerts, handleWatchInput } from "./watches.js";
 
 function env(name: string, fallback?: string): string | undefined {
   const v = process.env[name];
@@ -55,8 +56,11 @@ const api = createApiClient(API_BASE_URL);
 const liveBot = dry ? null : createTelegramBot(TOKEN, false);
 const dryBot = dry ? createDryRunBot() : null;
 let pollResearch = async () => {};
+let pollWatches = async () => {};
 if (liveBot && CHAT_ID) {
   try {
+    pollWatches = createWatchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")! + ".watches"), CHAT_ID,
+      async card => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
     pollResearch = createResearchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!), CHAT_ID,
       async (card) => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
   } catch { console.warn("[telegram] research alert state unavailable; automatic research alerts disabled until restart. Commands still work."); }
@@ -203,6 +207,8 @@ async function processTgUpdates(): Promise<void> {
     if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
     if (msg?.text) {
+      const watch = await handleWatchInput(api, msg.text, `telegram:${msg.from!.id}`);
+      if (watch) { await liveBot.sendMessage(msg.chat.id, watch.text, watch.reply_markup); continue; }
       const card=await handleIdentityInput(api,msg.text,`telegram:${msg.from!.id}`);
       if (card) {await liveBot.sendMessage(msg.chat.id,card.text,card.reply_markup);continue;}
       if (/^\/proposals(?:@\w+)?\s*$/i.test(msg.text)) {
@@ -245,6 +251,12 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if (cq.data.startsWith("watch:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating watch…");
+      const card = await handleWatchInput(api, cq.data, `telegram:${cq.from!.id}`);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
     if (cq.data.startsWith("identity:")) {
       await liveBot.answerCallbackQuery(cq.id,"Checking identity…");
       const card=await handleIdentityInput(api,cq.data,`telegram:${cq.from!.id}`);
@@ -312,6 +324,7 @@ async function tick(): Promise<void> {
   if (Date.now() >= nextResearchPoll) {
     nextResearchPoll = Date.now() + 60_000;
     try { await pollResearch(); } catch { console.warn("[telegram] research poll unavailable; will retry"); }
+    try { await pollWatches(); } catch { console.warn("[telegram] watch poll unavailable; will retry"); }
   }
 }
 

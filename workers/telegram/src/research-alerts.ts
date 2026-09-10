@@ -48,7 +48,7 @@ export function createResearchAlerts(api: Pick<ApiClient, "listResearchProjects"
     if (running) return;
     running = true;
     try {
-      const projects = (await api.listResearchProjects()).filter((p) => p.enabled && p.lastResearchedAt && !p.lastError);
+      const projects = (await api.listResearchProjects()).filter((p) => p.enabled && !p.watchManaged && p.lastResearchedAt && !p.lastError);
       // Bounded detail fetches with round-robin fairness; don't reread unchanged snapshots.
       const ordered = [...projects.slice(cursor), ...projects.slice(0, cursor)];
       let inspected = 0;

@@ -5,6 +5,7 @@ import { runSocialLoop } from "./social/index.js";
 import { runProjectResearchLoop } from "./research/loop.js";
 import { runMarketLoop } from "./market.js";
 import { runIdentityLoop } from "./identity.js";
+import { runWatchLoop } from "./research/watch-loop.js";
 
 // Paper / research only — never honor trading or tx submission flags.
 if (
@@ -19,4 +20,4 @@ if (
 const rpc = createRpcClient();
 
 // Factory launch ingest (corroboration) + watched-wallet Transfer poller (empty-ready).
-await Promise.all([runListenerLoop(rpc), runWalletWatcherLoop(rpc), runSocialLoop(), runProjectResearchLoop(), runMarketLoop(rpc), runIdentityLoop()]);
+await Promise.all([runListenerLoop(rpc), runWalletWatcherLoop(rpc), runSocialLoop(), runProjectResearchLoop(), runMarketLoop(rpc), runIdentityLoop(), runWatchLoop()]);

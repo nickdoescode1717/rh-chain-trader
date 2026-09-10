@@ -11,8 +11,8 @@ export const candidateAddresses = (project: ResearchProject) => [...new Set((pro
   .filter((address) => !/^0x0{40}$/.test(address)))].sort();
 
 export function researchMenu(): BotCard {
-  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @handle domain [utility|meme|unknown] — add a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n/identity @handle — token identity evidence\n/proposals — latest five pending paper proposals\n\nExample: /watch @tradedotcv trade.cv utility\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
-    reply_markup: { inline_keyboard: [[button("Projects", "research:list:0"), button("Help", "research:help")]] } };
+  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @account or website — discover and watch a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n/identity @handle — token identity evidence\n/proposals — latest five pending paper proposals\n\nExample: /watch @tradedotcv\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
+    reply_markup: { inline_keyboard: [[button("Projects", "watch:list:0"), button("Help", "research:help")]] } };
 }
 
 export function formatResearchProject(project: ResearchProject): BotCard {
@@ -42,7 +42,7 @@ export function formatResearchProject(project: ResearchProject): BotCard {
   }
   return { text: bounded(lines.join("\n")), reply_markup: validHandle(handle) ? { inline_keyboard: [
     [button("Refresh report", `research:report:${handle}`), button(project.enabled ? "Pause watching" : "Resume watching", `research:${project.enabled ? "pause" : "resume"}:${handle}`)],
-    [button("Token identity", `identity:list:${handle}`),button("Projects", "research:list:0")],
+    [button("Token identity", `identity:list:${handle}`),button("Projects", "watch:list:0")],
   ] } : undefined };
 }
 
@@ -51,7 +51,7 @@ export function formatProjectList(projects: ResearchProject[], page = 0): BotCar
   const index = Math.min(page, lastPage), rows = projects.slice(index * 6, index * 6 + 6);
   return { text: ["WATCHED PROJECTS", `${projects.length} projects · Page ${index + 1}/${lastPage + 1}`,
     ...rows.map((p) => `@${clean(p.handle, 15)} · ${p.enabled ? "watching" : "paused"} · ${clean(p.domain, 253)}`),
-    rows.length ? "\nTap a project for its report." : "\nAdd one: /watch @tradedotcv trade.cv utility"].join("\n"),
+    rows.length ? "\nTap a project for its report." : "\nAdd one: /watch @tradedotcv"].join("\n"),
     reply_markup: { inline_keyboard: [...rows.filter((p) => validHandle(p.handle)).map((p) => [button(`@${p.handle}`, `research:report:${p.handle}`)]),
       [...(index > 0 ? [button("Previous", `research:list:${index - 1}`)] : []), ...(index < lastPage ? [button("Next", `research:list:${index + 1}`)] : [])],
       [button("Help", "research:help")]].filter((row) => row.length) } };
@@ -83,7 +83,7 @@ export async function handleResearchInput(api: ResearchApi, input: string, callb
       const domain = (args[1] ?? "").toLowerCase(), category = args[2] ?? "unknown";
       if (args.length < 2 || args.length > 3 || domain.length > 253 || !/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)
         || /\.(local|localhost|internal|test|invalid|example)$/.test(domain) || !["utility", "meme", "unknown"].includes(category)) {
-        return { text: "Use /watch @handle domain [utility|meme|unknown]. Example: /watch @tradedotcv trade.cv utility" };
+        return { text: "Use /watch @handle domain [utility|meme|unknown]. Example: /watch @tradedotcv" };
       }
       // Reusing a watch preserves the report and hourly schedule; monitoring changes are idempotent.
       let existing: ResearchProject | null = null;
@@ -103,3 +103,4 @@ export async function handleResearchInput(api: ResearchApi, input: string, callb
     return { text: "Project research is unavailable right now. Check the backend connection and research migration, then retry. No purchase was created." };
   }
 }
+

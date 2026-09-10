@@ -12,7 +12,7 @@ Robinhood brokerage listings are not evidence of deployment on the target chain.
 
 ## Reconcile the original and latest instructions
 
-- Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The existing official X API scanner needs a provider adapter and integration validation before using TwitterAPI.io. Preserve the Grok analysis/bot interfaces; do not configure credentials or enable paid collection now.
+- Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The older official X graph scanner still needs a vendor adapter. One-input watches now have a separate bounded TwitterAPI.io profile/recent-post adapter; live credential validation remains pending. Preserve the Grok analysis/bot interfaces; do not configure credentials or enable paid collection now.
 - Nick subsequently made **Telegram primary and the only trade-approval interface**. This supersedes earlier Grok-primary/Telegram-fallback language. Grok keeps analysis and proposal drafting, not approval authority. Future automatic policies must be authorized through Telegram; an LLM never authorizes itself.
 - Nick emphasized **copycat avoidance as critical**. Future live eligibility requires chain-specific official issuer/token/deployer provenance. Name/ticker/logo matches, subdomain evidence, follower links, an address mention or a model score cannot establish identity. Conflicting or missing issuer evidence must block execution. The deployed paper identity gate now requires an owner-reviewed explicit source declaration plus fresh canonical direct/Pons V2 deployment evidence. X authentication and additional deployment adapters remain missing; identity verification is not a safety verdict.
 - The original structured prompt starts with explicit approval for each buy and allows sells under rules approved in advance.
@@ -79,3 +79,7 @@ Report and persist separate timestamps for publication, observation, chain block
 No feature becomes complete merely because it has a database table, environment variable, placeholder score, stub endpoint or a checkbox in this file. Every PR should name the rows it advances and the remaining acceptance gaps.
 
 See [PRELAUNCH_RESEARCH.md](PRELAUNCH_RESEARCH.md) for the implemented research slice and [the initial tradedotcv review](research/tradedotcv-2026-09-09.md) for actual findings and collection gaps.
+
+## Simplified watch intake (2026-09-10)
+See [SIMPLE_WATCH.md](SIMPLE_WATCH.md): one X profile or website is sufficient to save a watch. Linked accounts, website evidence, public subdomains and mentioned addresses are assembled with provenance. Unresolved/ambiguous mappings stay visible; no automatic issuer trust. Related-account collection is bounded to six profiles and recent timelines when the deferred vendor setup is enabled.
+
