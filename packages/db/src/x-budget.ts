@@ -33,11 +33,11 @@ export async function reserveXRequest(db: Db, kind: "profile" | "posts", handle:
     const [state] = await tx.execute(sql`select blocked_until from x_provider_state where id=1`);
     if (!state) throw new Error("x_budget_unavailable");
     if (state.blocked_until && new Date(state.blocked_until as string) > now) throw new Error("x_provider_backoff");
-    const [spend] = await tx.execute(sql`select coalesce(sum(reserved_credits),0)::int as credits from x_request_budget where created_at > ${now}::timestamptz - interval '24 hours'`);
+    const [spend] = await tx.execute(sql`select coalesce(sum(reserved_credits),0)::int as credits from x_request_budget where created_at > ${now.toISOString()}::timestamptz - interval '24 hours'`);
     const cost = X_RESERVED_CREDITS[kind];
     if (Number(spend.credits) + cost > X_DAILY_CREDITS) throw new Error("x_daily_budget_exhausted");
-    const [request] = await tx.execute(sql`insert into x_request_budget(cache_key,reserved_credits,created_at) values(${key},${cost},${now}) returning id`);
-    await tx.execute(sql`insert into x_response_cache(cache_key,lease_id,next_attempt_at) values(${key},${request.id},${new Date(now.getTime()+600_000)})
+    const [request] = await tx.execute(sql`insert into x_request_budget(cache_key,reserved_credits,created_at) values(${key},${cost},${now.toISOString()}::timestamptz) returning id`);
+    await tx.execute(sql`insert into x_response_cache(cache_key,lease_id,next_attempt_at) values(${key},${request.id},${new Date(now.getTime()+600_000).toISOString()}::timestamptz)
       on conflict(cache_key) do update set lease_id=excluded.lease_id,next_attempt_at=excluded.next_attempt_at`);
     return { cached: null, id: String(request.id) };
   });
