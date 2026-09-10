@@ -70,6 +70,7 @@ export async function handleCallback(
     return { ok: false, action: "unknown", detail: "unreachable" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (/identity_(?:unverified|conflicting|requires)/.test(msg)) return {ok:false,action:parsed.action,detail:"Buy blocked by the identity gate. Open /identity @handle or /proposals for the current evidence."};
     if (/insufficient_paper_cash/.test(msg)) return { ok: false, action: parsed.action, detail: "Insufficient paper cash. Check /balance. No fill recorded." };
     if (/fresh_entry_quote_required|entry_quote_storage_unavailable/.test(msg)) {
       return { ok: false, action: parsed.action, detail: "A fresh eligible price is needed. Try Approve again in a minute. No position opened." };

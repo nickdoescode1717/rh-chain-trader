@@ -4,6 +4,7 @@
 import { decimalText } from "../validation.js";
 
 export type CreateBody = {
+  projectHandle?: string | null;
   tokenCA?: string;
   tokenAddress?: string;
   tokenId?: string | null;
@@ -57,6 +58,7 @@ export function iso(v: Date | string | null | undefined): string | null {
 }
 
 export function toPhonePayload(row: {
+  projectHandle?: string | null;
   id: string;
   tokenAddress: string | null;
   size: string | null;
@@ -82,6 +84,7 @@ export function toPhonePayload(row: {
 
   return {
     id: row.id,
+    projectHandle: row.projectHandle ?? null,
     tokenCA: row.tokenAddress,
     chainId: 4663,
     sizeEth,

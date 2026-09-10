@@ -25,6 +25,7 @@ import { isAuthorizedUpdate } from "./access.js";
 import { handleResearchInput } from "./research.js";
 import { handlePortfolioCallback } from "./portfolio.js";
 import { handlePaperCallback } from "./paper-trading.js";
+import { handleIdentityInput } from "./identity.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 
 function env(name: string, fallback?: string): string | undefined {
@@ -62,7 +63,7 @@ if (liveBot && CHAT_ID) {
 }
 let nextResearchPoll = 0;
 
-const notifiedProposals = new Set<string>();
+const notifiedProposals = new Map<string,string>();
 const alertedPositions = new Set<string>();
 const fillReceiptSent = new Set<string>();
 
@@ -125,12 +126,13 @@ async function pollProposals(): Promise<void> {
     return;
   }
   for (const p of proposals.filter((x) => x.status === "pending_nick")) {
-    if (notifiedProposals.has(p.id)) continue;
+    const fingerprint = JSON.stringify([p.status,p.issuerIdentity?.status,p.issuerIdentity?.reasons]);
+    if (notifiedProposals.get(p.id) === fingerprint) continue;
     const msg = formatProposal(p);
     console.log(`[telegram] new pending proposal ${p.id}`);
     try {
       await deliver(msg.text, msg.reply_markup);
-      notifiedProposals.add(p.id);
+      notifiedProposals.set(p.id,fingerprint);
     } catch (err) {
       console.warn("[telegram] deliver proposal failed:", err instanceof Error ? err.message : err);
     }
@@ -200,6 +202,16 @@ async function processTgUpdates(): Promise<void> {
     // Gate both commands and callbacks before any backend access, including paper approvals.
     if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
+    if (msg?.text) {
+      const card=await handleIdentityInput(api,msg.text,`telegram:${msg.from!.id}`);
+      if (card) {await liveBot.sendMessage(msg.chat.id,card.text,card.reply_markup);continue;}
+      if (/^\/proposals(?:@\w+)?\s*$/i.test(msg.text)) {
+        const pending=(await api.listProposals()).filter(p=>p.status==="pending_nick").slice(0,5);
+        if (!pending.length) await liveBot.sendMessage(msg.chat.id,"No pending paper proposals.");
+        for(const p of pending) {const c=formatProposal(p);await liveBot.sendMessage(msg.chat.id,c.text,c.reply_markup);}
+        continue;
+      }
+    }
     if (msg?.text && /^\/history(?:@\w+)?\s*$/.test(msg.text)) {
       const card = await handlePaperCallback(api, "paper:history:0", `telegram:${msg.from!.id}`);
       await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue;
@@ -233,6 +245,12 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if (cq.data.startsWith("identity:")) {
+      await liveBot.answerCallbackQuery(cq.id,"Checking identity…");
+      const card=await handleIdentityInput(api,cq.data,`telegram:${cq.from!.id}`);
+      if(card) await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+      continue;
+    }
     if (cq.data.startsWith("paper:")) {
       await liveBot.answerCallbackQuery(cq.id, "Updating paper trade…");
       const card = await handlePaperCallback(api, cq.data, `telegram:${cq.from!.id}`);

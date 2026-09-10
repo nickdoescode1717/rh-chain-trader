@@ -14,6 +14,7 @@ import { buyWalletRoutes } from "./routes/buy-wallets.js";
 import { paperBalanceRoutes } from "./routes/paper-balance.js";
 import { positionRoutes } from "./routes/positions.js";
 import { paperSellRoutes } from "./routes/paper-sells.js";
+import { identityRoutes } from "./routes/identity.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { researchRoutes } from "./routes/research.js";
 
@@ -38,6 +39,7 @@ app.route("/buy-wallets", buyWalletRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
 app.route("/positions", positionRoutes);
 app.route("/paper-sells", paperSellRoutes);
+app.route("/identity", identityRoutes);
 app.route("/discovery", discoveryRoutes);
 app.route("/research", researchRoutes);
 

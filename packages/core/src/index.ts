@@ -6,3 +6,4 @@ export * from "./topics.js";
 export * from "./research.js";
 export * from "./market.js";
 export * from "./paper-execution.js";
+export * from "./identity.js";

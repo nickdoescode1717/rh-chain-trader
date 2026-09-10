@@ -142,6 +142,7 @@ export const auditLog = pgTable("audit_log", {
  * See docs/PURCHASE_PROPOSALS.md
  */
 export const purchaseProposals = pgTable("purchase_proposals", {
+  projectHandle: text("project_handle"),
   id: uuid("id").defaultRandom().primaryKey(),
   tokenId: uuid("token_id").references(() => tokens.id),
   tokenAddress: text("token_address"),
@@ -289,4 +290,18 @@ export const researchProjects = pgTable("research_projects", {
   lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const identityClaims = pgTable("identity_claims", {
+  id: uuid("id").defaultRandom().primaryKey(), projectHandle: text("project_handle").notNull().references(() => researchProjects.handle),
+  domain: text("domain").notNull(), sourceUrl: text("source_url").notNull(), tokenAddress: text("token_address").notNull(),
+  deployerAddress: text("deployer_address").notNull(), creationTxHash: text("creation_tx_hash").notNull(),
+  report: jsonb("report").$type<Record<string, unknown>>(), checkedAt: timestamp("checked_at", { withTimezone: true }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }), reviewedBy: text("reviewed_by"), reviewedSourceHash: text("reviewed_source_hash"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const identityReviews = pgTable("identity_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(), claimId: uuid("claim_id").notNull().references(() => identityClaims.id),
+  sourceHash: text("source_hash").notNull(), actor: text("actor").notNull(), status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });

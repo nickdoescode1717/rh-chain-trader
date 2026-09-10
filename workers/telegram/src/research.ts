@@ -11,7 +11,7 @@ export const candidateAddresses = (project: ResearchProject) => [...new Set((pro
   .filter((address) => !/^0x0{40}$/.test(address)))].sort();
 
 export function researchMenu(): BotCard {
-  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @handle domain [utility|meme|unknown] — add a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n\nExample: /watch @tradedotcv trade.cv utility\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
+  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @handle domain [utility|meme|unknown] — add a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n/identity @handle — token identity evidence\n/proposals — latest five pending paper proposals\n\nExample: /watch @tradedotcv trade.cv utility\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
     reply_markup: { inline_keyboard: [[button("Projects", "research:list:0"), button("Help", "research:help")]] } };
 }
 
@@ -42,7 +42,7 @@ export function formatResearchProject(project: ResearchProject): BotCard {
   }
   return { text: bounded(lines.join("\n")), reply_markup: validHandle(handle) ? { inline_keyboard: [
     [button("Refresh report", `research:report:${handle}`), button(project.enabled ? "Pause watching" : "Resume watching", `research:${project.enabled ? "pause" : "resume"}:${handle}`)],
-    [button("Projects", "research:list:0")],
+    [button("Token identity", `identity:list:${handle}`),button("Projects", "research:list:0")],
   ] } : undefined };
 }
 

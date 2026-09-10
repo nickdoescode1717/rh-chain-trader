@@ -42,6 +42,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Identity gate (current branch, deployment verification pending)**
+- See `docs/IDENTITY_GATE.md`. Migration 0010, API/collector `IDENTITY_GATE_ENABLED`, immutable identity drafts and separate Telegram owner source reviews. Current verification covers explicit website token/chain declarations and direct/Pons V2 canonical deployment evidence, with stale/error/conflict rejection.
+- New buys are gated inside durable settlement; scores, names and untrusted draft fields cannot override. Existing holdings/sells remain available. Do not automatically trust any existing project or fabricate source approvals. X authentication and other factory adapters remain missing.
+
 **Durable paper ledger (deployed 2026-09-10 UTC)**
 - See `docs/PAPER_LEDGER.md`. Migration 0009 and `PAPER_LEDGER_ENABLED` add atomic, fixed-point paper buy/sell settlement, persistent currency cash and realized P&L, immutable fills, reconciliation, and restart-safe idempotency.
 - Telegram `/positions` previews 25/50/100% of remaining tokens; sell confirmations expire after 90 seconds and recheck price/position version. `/history` lists fills. All trade decisions still require the Telegram service credential and exact owner actor.

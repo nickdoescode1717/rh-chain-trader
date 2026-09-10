@@ -13,6 +13,7 @@ import { isRecord } from "../validation.js";
 import { telegramDecisionError } from "../telegram-approval.js";
 import { ledgerBuy, ledgerEnabled, LedgerError } from "../paper-ledger.js";
 import { dbRowToMem } from "../paper-positions-mem.js";
+import { identityEnabled, identityTransaction, proposalIdentity } from "../identity.js";
 import {
   memPurchaseProposals,
   type MemPurchaseProposal,
@@ -39,6 +40,7 @@ export const purchaseProposalRoutes = new Hono();
 purchaseProposalRoutes.get("/", async (c) => {
   const db = getDb();
   if (!db) {
+    if (identityEnabled()) return c.json({ error:"identity_storage_unavailable" },503);
     return c.json({
       data: memPurchaseProposals.map(toPhonePayload),
       source: "memory",
@@ -49,13 +51,25 @@ purchaseProposalRoutes.get("/", async (c) => {
     .select()
     .from(purchaseProposals)
     .orderBy(desc(purchaseProposals.createdAt));
-  return c.json({ data: rows.map(toPhonePayload), source: "postgres", paperOnly: true });
+  const data = identityEnabled() ? await identityTransaction(async tx => {
+    const result = [];
+    for (const row of rows) result.push({ ...toPhonePayload(row), identityGateEnabled: true,
+      issuerIdentity: { ...await proposalIdentity(tx,row), liveExecutionBlocked:true } });
+    return result;
+  }) : rows.map(toPhonePayload);
+  return c.json({ data, source: "postgres", paperOnly: true });
 });
 
 purchaseProposalRoutes.post("/", async (c) => {
   const rawBody: unknown = await c.req.json().catch(() => null);
   if (!isRecord(rawBody)) return c.json({ error: "invalid_json" }, 400);
   const body = rawBody as CreateBody;
+  let projectHandle: string | null = null;
+  if (body.projectHandle != null) {
+    if (typeof body.projectHandle !== "string") return c.json({ error:"invalid_project_handle" },400);
+    projectHandle = body.projectHandle.replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_]{1,15}$/.test(projectHandle)) return c.json({ error:"invalid_project_handle" },400);
+  }
   for (const field of ["tokenId", "leadSource", "rationale", "expiresAt", "channel", "note"] as const) {
     if (body[field] != null && typeof body[field] !== "string") {
       return c.json({ error: `invalid_${field}` }, 400);
@@ -123,6 +137,7 @@ purchaseProposalRoutes.post("/", async (c) => {
   const db = getDb();
   if (!db) {
     const row: MemPurchaseProposal = {
+      projectHandle,
       id: crypto.randomUUID(),
       tokenId,
       tokenAddress,
@@ -151,6 +166,7 @@ purchaseProposalRoutes.post("/", async (c) => {
   const [row] = await db
     .insert(purchaseProposals)
     .values({
+      projectHandle,
       tokenId,
       tokenAddress,
       size,
@@ -242,13 +258,15 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
   const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
   if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
   const actor = actorBody.actor as string;
+  if (identityEnabled() && !ledgerEnabled()) return c.json({error:"identity_requires_durable_ledger"},503);
   if (ledgerEnabled()) {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return c.json({ error: "invalid_id" }, 400);
     try {
       const result = await ledgerBuy(id, actor);
       const p = dbRowToMem(result.position);
       p.marketQuote = result.fill.quote as MarketQuote;
-      return c.json({ ...approveResponse(result.proposal, "postgres", null, p), fill: result.fill, replayed: result.replayed });
+      const response = approveResponse(result.proposal, "postgres", null, p), recordedIdentity = p.entrySnapshot?.identity;
+      return c.json({ ...response, data:{ ...response.data, ...(isRecord(recordedIdentity) ? {issuerIdentity:{...recordedIdentity,liveExecutionBlocked:true}} : {}) }, fill: result.fill, replayed: result.replayed });
     } catch (e) { return c.json({ error: e instanceof LedgerError ? e.message : "paper_settlement_unavailable" }, e instanceof LedgerError ? e.status : 503); }
   }
   const preferred =

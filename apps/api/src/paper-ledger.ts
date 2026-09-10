@@ -3,6 +3,7 @@ import { auditLog, marketQuotes, paperAccounts, paperFills, paperLedger, paperSe
 import { captureEntry, decimal, PAPER_MODEL, quoteUsable, simulateBuy, simulateSell, units, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "./db.js";
 import { dbRowToMem, toPositionPayload } from "./paper-positions-mem.js";
+import { identityEnabled, proposalIdentity } from "./identity.js";
 export const ledgerEnabled = () => process.env.PAPER_LEDGER_ENABLED === "true";
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 export class LedgerError extends Error { constructor(message: string, readonly status: 400 | 404 | 409 | 503 = 409) { super(message); } }
@@ -56,11 +57,14 @@ export async function ledgerBuy(id: string, actor: string) {
       return { proposal, position, fill: prior, replayed: true };
     }
     if (proposal.status !== "pending_nick" || (proposal.expiresAt && proposal.expiresAt.getTime() <= Date.now())) throw new LedgerError("not_pending_or_expired");
+    const identity = identityEnabled() ? await proposalIdentity(tx, proposal) : null;
+    if (identity && identity.status !== "verified") throw new LedgerError(`identity_${identity.status}:${identity.reasons.join(",")}`);
     const { currency, cost } = currencySize(proposal.size), q = await currentQuote(tx, proposal.tokenAddress);
     const [account] = await tx.select().from(paperAccounts).where(eq(paperAccounts.currency, currency));
     if (units(account.cash) < units(cost)) throw new LedgerError("insufficient_paper_cash");
     const model = simulateBuy(cost, String(currency === "ETH" ? q.priceEth : q.priceUsd));
     const snapshot = captureEntry(q, proposal.tokenAddress!, proposal.size);
+    snapshot.identity = identity;
     // Immutable execution snapshot contains modeled costs as well as reference quote.
     snapshot.unitPrice = Number(model.executionPrice); snapshot.quantity = Number(model.quantity); snapshot.execution = model;
     const [position] = await tx.insert(positions).values({ tokenAddress: proposal.tokenAddress, size: proposal.size,
@@ -68,7 +72,7 @@ export async function ledgerBuy(id: string, actor: string) {
       markSource: "dexscreener", markObservedAt: new Date(q.observedAt), openedAt: new Date(), status: "simulated_open",
       proposalId: id, channel: "telegram", note: "Paper fill; explicit modeled fee/slippage; no live transaction",
       ledgerManaged: true, remainingQuantity: model.quantity, remainingCost: cost }).returning();
-    const [fill] = await tx.insert(paperFills).values({ eventKey: `buy:${id}`, positionId: position.id, currency, side: "buy", execution: model, quote: q, actor }).returning();
+    const [fill] = await tx.insert(paperFills).values({ eventKey: `buy:${id}`, positionId: position.id, currency, side: "buy", execution: { ...model, identity }, quote: q, actor }).returning();
     await tx.update(paperAccounts).set({ cash: decimal(units(account.cash) - units(cost)) }).where(eq(paperAccounts.currency, currency));
     await tx.insert(paperLedger).values({ eventKey: `buy:${id}`, currency, positionId: position.id, kind: "buy", delta: model.cashDelta });
     const [approved] = await tx.update(purchaseProposals).set({ status: "approved", approvedAt: new Date(), note: "PAPER_LEDGER_SETTLED" }).where(eq(purchaseProposals.id, id)).returning();

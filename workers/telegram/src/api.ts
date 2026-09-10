@@ -4,6 +4,9 @@
  */
 
 export type Proposal = {
+  projectHandle?: string | null;
+  identityGateEnabled?: boolean;
+  issuerIdentity?: IdentityVerdict;
   id: string;
   tokenCA?: string;
   tokenAddress?: string;
@@ -95,6 +98,12 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  identityProject: (handle:string) => Promise<IdentityProject>;
+  identityClaim: (id:string) => Promise<{claim:IdentityClaim;verdict:IdentityVerdict}>;
+  draftIdentityClaim: (body:{projectHandle:string;tokenAddress:string;deployerAddress:string;creationTxHash:string;sourceUrl:string}) => Promise<IdentityClaim>;
+  reviewIdentity: (id:string,actor:string) => Promise<{review:{id:string;expiresAt:string};claim:IdentityClaim}>;
+  confirmIdentity: (id:string,actor:string) => Promise<{confirmed:boolean;verdict?:IdentityVerdict}>;
+  revokeIdentity: (id:string,actor:string) => Promise<{revoked:boolean;projectHandle:string}>;
   previewPaperSell: (id: string, percent: number, actor: string) => Promise<SellPreview>;
   confirmPaperSell: (id: string, actor: string) => Promise<{ fill: PaperFill; replayed: boolean }>;
   cancelPaperSell: (id: string, actor: string) => Promise<{ cancelled: boolean }>;
@@ -114,6 +123,10 @@ export type ApiClient = {
 
 export type PaperExecution = { mode: "paper"; side: "buy" | "sell"; quantity: string; fee: string; cashDelta: string;
   executionPrice: string; cost: string; realizedPnl: string; remainingQuantity?: string; remainingCost?: string };
+export type IdentityVerdict = { status:string; reasons?:string[]; sourceUrl?:string|null; checkedAt?:string|null; scope?:string };
+export type IdentityClaim = { id:string; projectHandle:string; domain:string; sourceUrl:string; tokenAddress:string; deployerAddress:string; creationTxHash:string;
+  reviewedAt:string|null; revokedAt:string|null; checkedAt:string|null; report:{source:{status:string;reason:string;excerpt:string;xLinked:boolean};chain:{status:string;reason:string;confirmations?:number;method?:string}}|null };
+export type IdentityProject = {project:{handle:string;domain:string;enabled:boolean};claims:IdentityClaim[];verdict:IdentityVerdict};
 export type PaperFill = { id: string; positionId: string; currency: string; side: "buy" | "sell";
   execution: PaperExecution; createdAt: string; quote: { tokenAddress: string } };
 export type SellPreview = { id: string; positionId: string; tokenCA: string; percent: number; currency: string;
@@ -164,6 +177,11 @@ async function jsonFetch(
 }
 
 export function createApiClient(baseUrl: string, approvalToken = process.env.TELEGRAM_APPROVAL_TOKEN): ApiClient {
+  async function identity<T>(path:string,body?:unknown,decision=false):Promise<T> {
+    const r=await jsonFetch(joinUrl(baseUrl,`/identity/${path}`),body===undefined?undefined:{method:"POST",headers:decision?decisionHeaders():{},body:JSON.stringify(body)});
+    if (!r.ok) throw new Error(typeof (r.body as {error?:unknown})?.error === "string" ? (r.body as {error:string}).error : "identity_unavailable");
+    return (r.body as {data:T}).data;
+  }
   async function paper<T>(path: string, body?: unknown): Promise<T> {
     const r = await jsonFetch(joinUrl(baseUrl, `/paper-sells/${path}`), body === undefined ? undefined : {
       method: "POST", headers: decisionHeaders(), body: JSON.stringify(body),
@@ -185,6 +203,12 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
   }
   return {
     baseUrl,
+    identityProject: handle=>identity(`projects/${encodeURIComponent(handle)}`),
+    identityClaim: id=>identity(`claims/${encodeURIComponent(id)}`),
+    draftIdentityClaim: body=>identity("claims",body),
+    reviewIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/review`,{actor},true),
+    confirmIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/confirm`,{actor},true),
+    revokeIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/revoke`,{actor},true),
     previewPaperSell: (id, percent, actor) => paper<SellPreview>(`${encodeURIComponent(id)}/preview`, { percent, actor }),
     confirmPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/confirm`, { actor }),
     cancelPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/cancel`, { actor }),
