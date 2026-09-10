@@ -42,6 +42,12 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Market pricing and paper entry snapshots (deployed 2026-09-10 UTC)**
+- Revision `4fea48846e1e950ab3850dc63132dc95bb5c2572` deployed. `MARKET_PRICING_ENABLED=true` on API/collector. Migration 0008 adds quote cache and durable entry/mark metadata. See `docs/MARKET_PRICING.md` for selection rules and limitations.
+- Exact-token Robinhood/native-ETH pools only; no ticker matching or arbitrary `priceNative`→ETH assumption. Fresh quotes verified for CRUMBS and STONKBROKER. Provider receipt time is recorded; underlying trade/price timestamp is unavailable.
+- Newly approved paper positions require an eligible quote <=90 seconds old and atomically save the immutable entry snapshot and estimated quantity. Quote observations >180 seconds old or with collection errors produce unavailable P&L. Legacy missing entries remain unknown.
+- 84 local tests and isolated PostgreSQL concurrency/rollback/hydration/staleness tests passed. No production test trade. Full budget/exposure ledger and live execution remain unimplemented.
+
 **Telegram portfolio improvements (deployed 2026-09-09)**
 - Application revision `3722eae6c2942ad1d8e9df4969cc2bd7cccc9b15` deployed to API and Telegram. Positions use five-item pages, detail/refresh/balance buttons, shortened addresses in summaries and full addresses in details. Research/portfolio navigation edits the current message.
 - Token display labels recover through exact chain/address token joins or the original proposal scores after restart. Labels are not issuer verification. Verified CRUMBS, STONKBROKER and PAPERDEMO labels against the deployed database.
