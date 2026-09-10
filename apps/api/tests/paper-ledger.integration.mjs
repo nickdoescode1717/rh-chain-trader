@@ -78,7 +78,8 @@ assert.equal(await cash(), cashBefore + units(sell.execution.cashDelta));
 assert.equal((await confirm(obsolete.id)).body.error, 'position_changed_refresh_preview');
 assert.equal((await post(`/paper-sells/${first.id}/cancel`)).body.error, 'sell_already_executed');
 let held = (await read('/positions')).find(p => p.id === pid);
-assert.equal(units(held.remainingCost), units('0.45'));
+assert.equal(units(held.remainingCost), units(approved.fill.execution.cost) - units(sell.execution.cost));
+assert.ok(units(held.remainingCost) >= units('0.45') && units(held.remainingCost) <= units('0.45') + 1n); // quantity rounds down at 18 decimals
 assert.equal(units(held.realizedPnl), units(sell.execution.realizedPnl));
 assert.deepEqual(held.entrySnapshot, originalSnapshot);
 assert.ok(Math.abs(held.currentValue - Number(held.remainingQuantity)*0.002) < 1e-12);
