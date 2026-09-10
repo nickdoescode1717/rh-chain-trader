@@ -42,7 +42,8 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
-**One-input watch intake (2026-09-10)**
+**One-input watch intake (deployed 2026-09-10)**
+- Application a93f960 deployed; 107 local tests and isolated API/collector database checks passed. Live public discovery found tradedotcv from trade.cv, and 0.88 ETH / 3 holdings were preserved. See docs/deployments/2026-09-10-simple-watch.md.
 - See docs/SIMPLE_WATCH.md. Migration 0011, durable /watch account-or-website intake, automatic bounded linked-account/website discovery and Telegram updates. Website-only research works without X. TwitterAPI.io watch enrichment is implemented but remains disabled pending setup; older X graph scanner unchanged.
 - Never overwrite existing project mappings or grant identity trust from discovery. Preserve pause and hourly scheduling. Desktop helper scripts/logs are now in C:/Users/ncrim/Desktop/Desktop Files/Bot Operations; repository and SSH paths are unchanged.
 
@@ -168,4 +169,5 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ---
 
 *Maintained by Coder for multi-agent continuity. Update when state or rules change.*
+
 
