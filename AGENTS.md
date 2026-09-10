@@ -20,7 +20,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Telegram is the primary user interface and the ONLY trade-approval channel** (Nick, 2026-09-09): concise research/options, watch controls, proposal decisions and position updates through the existing bot. Grok provides analysis and may draft proposals; it cannot approve/reject trades. Prioritize backend quality and efficiency. The web dashboard is optional administration; do not expand/polish it without a new request.
 - On-chain tokens ≠ Robinhood **brokerage** listings.
 - **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
-- **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. Current paper proposals remain explicitly identity-unverified; automatic identity verification is still missing.
+- **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. New paper buys now require the deployed owner-reviewed source and deployment identity gate; unverified or conflicting identities block entry. No project is auto-trusted; X authentication and additional factory adapters remain missing.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
@@ -42,9 +42,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
-**Identity gate (current branch, deployment verification pending)**
+**Identity gate (deployed 2026-09-10 UTC)**
 - See `docs/IDENTITY_GATE.md`. Migration 0010, API/collector `IDENTITY_GATE_ENABLED`, immutable identity drafts and separate Telegram owner source reviews. Current verification covers explicit website token/chain declarations and direct/Pons V2 canonical deployment evidence, with stale/error/conflict rejection.
 - New buys are gated inside durable settlement; scores, names and untrusted draft fields cannot override. Existing holdings/sells remain available. Do not automatically trust any existing project or fabricate source approvals. X authentication and other factory adapters remain missing.
+- Application `87e5cb4c0cc8a08855dc8647bd5858dce9fe58ae` deployed with gate enabled on API/collector. 98 local tests, isolated PostgreSQL identity/approval integration and one real-chain Pons creation probe passed. Live read-only checks verified owner auth, unverified proposal buttons and unchanged 0.88 ETH/3 holdings. `tradedotcv` remains paused and untrusted. See `docs/deployments/2026-09-10-identity-gate.md`.
 
 **Durable paper ledger (deployed 2026-09-10 UTC)**
 - See `docs/PAPER_LEDGER.md`. Migration 0009 and `PAPER_LEDGER_ENABLED` add atomic, fixed-point paper buy/sell settlement, persistent currency cash and realized P&L, immutable fills, reconciliation, and restart-safe idempotency.
