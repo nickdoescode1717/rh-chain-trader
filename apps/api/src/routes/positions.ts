@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { desc, eq } from "drizzle-orm";
 import { positions } from "@rh/db";
 import { getDb } from "../db.js";
+import { ledgerBook, ledgerEnabled } from "../paper-ledger.js";
 import { decimalText, isRecord } from "../validation.js";
 import {
   getOpenPositions,
@@ -38,6 +39,10 @@ function recentMem(limit = 40): MemPaperPosition[] {
 }
 
 positionRoutes.get("/", async (c) => {
+  if (ledgerEnabled()) {
+    try { return c.json({ data: (await ledgerBook()).holdings, source: "postgres", paperOnly: true }); }
+    catch { return c.json({ error: "paper_book_unavailable" }, 503); }
+  }
   await hydrateOpenFromDb();
   const memRows = recentMem().map(toPositionPayload);
   const db = getDb();
@@ -113,6 +118,7 @@ positionRoutes.get("/", async (c) => {
  * Best-effort mirrors mark to postgres current_price when DB present.
  */
 positionRoutes.post("/:id/paper-mark", async (c) => {
+  if (ledgerEnabled()) return c.json({ error: "manual_marks_disabled_for_ledger" }, 409);
   const id = c.req.param("id");
   const body: unknown = await c.req.json().catch(() => null);
   if (!isRecord(body)) return c.json({ error: "invalid_json", paperOnly: true }, 400);

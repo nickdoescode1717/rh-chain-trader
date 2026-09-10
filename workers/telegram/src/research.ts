@@ -11,7 +11,7 @@ export const candidateAddresses = (project: ResearchProject) => [...new Set((pro
   .filter((address) => !/^0x0{40}$/.test(address)))].sort();
 
 export function researchMenu(): BotCard {
-  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @handle domain [utility|meme|unknown] — add a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — paper positions\n\nExample: /watch @tradedotcv trade.cv utility\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
+  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @handle domain [utility|meme|unknown] — add a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n\nExample: /watch @tradedotcv trade.cv utility\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
     reply_markup: { inline_keyboard: [[button("Projects", "research:list:0"), button("Help", "research:help")]] } };
 }
 

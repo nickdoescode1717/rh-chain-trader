@@ -183,6 +183,11 @@ export const positions = pgTable("positions", {
   entryPrice: text("entry_price"),
   currentPrice: text("current_price"), // nullable until oracle
   entrySnapshot: jsonb("entry_snapshot").$type<Record<string, unknown>>(),
+  ledgerManaged: boolean("ledger_managed").notNull().default(false),
+  remainingQuantity: numeric("remaining_quantity", { precision: 78, scale: 18 }),
+  remainingCost: numeric("remaining_cost", { precision: 78, scale: 18 }),
+  realizedPnl: numeric("realized_pnl", { precision: 78, scale: 18 }).notNull().default("0"),
+  positionVersion: integer("position_version").notNull().default(0),
   markSource: text("mark_source"),
   markObservedAt: timestamp("mark_observed_at", { withTimezone: true }),
   pnlAbs: text("pnl_abs"),
@@ -213,6 +218,36 @@ export const marketQuotes = pgTable("market_quotes", {
   quote: jsonb("quote").$type<Record<string, unknown>>(),
   lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
   lastError: text("last_error"),
+});
+
+export const paperAccounts = pgTable("paper_accounts", {
+  currency: text("currency").primaryKey(),
+  cash: numeric("cash", { precision: 78, scale: 18 }).notNull(),
+  realizedPnl: numeric("realized_pnl", { precision: 78, scale: 18 }).notNull().default("0"),
+});
+export const paperLedger = pgTable("paper_ledger", {
+  id: uuid("id").defaultRandom().primaryKey(), eventKey: text("event_key").notNull().unique(),
+  currency: text("currency").notNull().references(() => paperAccounts.currency),
+  positionId: uuid("position_id").references(() => positions.id),
+  kind: text("kind").notNull(), delta: numeric("delta", { precision: 78, scale: 18 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const paperFills = pgTable("paper_fills", {
+  id: uuid("id").defaultRandom().primaryKey(), eventKey: text("event_key").notNull().unique(),
+  positionId: uuid("position_id").notNull().references(() => positions.id),
+  currency: text("currency").notNull(), side: text("side").notNull(),
+  execution: jsonb("execution").$type<Record<string, unknown>>().notNull(),
+  quote: jsonb("quote").$type<Record<string, unknown>>().notNull(), actor: text("actor").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const paperSellIntents = pgTable("paper_sell_intents", {
+  id: uuid("id").defaultRandom().primaryKey(), positionId: uuid("position_id").notNull().references(() => positions.id),
+  positionVersion: integer("position_version").notNull(), percent: integer("percent").notNull(),
+  actor: text("actor").notNull(), currency: text("currency").notNull(),
+  minimumNet: numeric("minimum_net", { precision: 78, scale: 18 }).notNull(),
+  preview: jsonb("preview").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull().default("pending"), fillId: uuid("fill_id").references(() => paperFills.id),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 });
 
 /** X discovery is evidence collection only; these records never authorize orders. */

@@ -4,6 +4,7 @@
  * Hydrates opens from DB so cash+positions survive API restart.
  */
 import { Hono } from "hono";
+import { ledgerBook, ledgerEnabled } from "../paper-ledger.js";
 import { memBuyWallets } from "./buy-wallets.js";
 import {
   computeUnrealized,
@@ -22,6 +23,10 @@ function fmtEth(n: number): string {
 }
 
 paperBalanceRoutes.get("/", async (c) => {
+  if (ledgerEnabled()) {
+    try { return c.json({ data: (await ledgerBook()).balance, paperOnly: true }); }
+    catch { return c.json({ error: "paper_book_unavailable" }, 503); }
+  }
   const open = await listOpenPositionsMerged();
   let unrealizedSum = 0;
   let incompleteMarks = false;

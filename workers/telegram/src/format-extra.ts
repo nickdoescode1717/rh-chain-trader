@@ -15,7 +15,7 @@ export function formatPaperFillSuccess(input: PaperFillInput): FormattedMessage 
   const size = input.sizeEth != null ? `${amount(input.sizeEth)} ETH` : input.sizeUsd != null ? `${amount(input.sizeUsd)} USD` : clean(input.size?.replace(":", " "));
   return { text: ["🧾 PAPER POSITION OPENED", "", input.symbol ? `$${clean(input.symbol).replace(/^\$/, "")}` : "Token name unavailable",
     `Invested  ${size || "not recorded"}`, `Entry estimate  ${amount(input.price)}${input.entryCurrency ? ` ${clean(input.entryCurrency, 3)}` : ""}`,
-    ...(input.quantity != null ? [`Quantity  ${amount(input.quantity)} tokens`, `DEX Screener observation  ${clean(input.observedAt, 30)}`, "Market estimate; fees, taxes and slippage excluded."] : [input.price ? "Awaiting a current market price for P&L." : "Entry price missing; P&L cannot be calculated yet."]),
+    ...(input.quantity != null ? [`Quantity  ${amount(input.quantity)} tokens`, `DEX Screener observation  ${clean(input.observedAt, 30)}`, "Recorded paper estimate. Ledger fills include modeled fees and slippage; gas and token taxes excluded."] : [input.price ? "Awaiting a current market price for P&L." : "Entry price missing; P&L cannot be calculated yet."]),
     "", "Contract", clean(input.tokenCA, 42), "Issuer identity unverified.", "",
     "Simulated only. No real funds moved.", "View your position with /positions.",
   ].join("\n") };
@@ -29,6 +29,6 @@ export function formatLargeMoveAlert({ position: p }: LargeMoveAlertInput): Form
   return { text: ["📈 PRICE MOVE · PAPER", "", p.symbol ? `$${clean(p.symbol)}` : "Unnamed token",
     m.reason ? `P&L unavailable — ${m.reason}` : `P&L  ${amount(m.pnl, true)} ${m.currency} (${amount(m.percent, true)}%)`,
     `Entry  ${amount(m.entry)} → Recorded price  ${amount(m.mark)}`,
-    "", clean(p.tokenCA ?? p.tokenAddress, 42), `${p.entrySnapshot ? "Market" : "Manual price"} estimate, before fees. Selling is not connected.`,
+    "", clean(p.tokenCA ?? p.tokenAddress, 42), `${p.entrySnapshot ? "Market" : "Manual price"} estimate. Open Positions to preview a paper sell.`,
   ].join("\n"), reply_markup: { inline_keyboard: [[{ text: "Positions", callback_data: "portfolio:positions:0" }]] } };
 }

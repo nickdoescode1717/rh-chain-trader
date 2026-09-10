@@ -24,6 +24,7 @@ import { createDryRunBot, createTelegramBot } from "./poll.js";
 import { isAuthorizedUpdate } from "./access.js";
 import { handleResearchInput } from "./research.js";
 import { handlePortfolioCallback } from "./portfolio.js";
+import { handlePaperCallback } from "./paper-trading.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 
 function env(name: string, fallback?: string): string | undefined {
@@ -199,6 +200,10 @@ async function processTgUpdates(): Promise<void> {
     // Gate both commands and callbacks before any backend access, including paper approvals.
     if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
+    if (msg?.text && /^\/history(?:@\w+)?\s*$/.test(msg.text)) {
+      const card = await handlePaperCallback(api, "paper:history:0", `telegram:${msg.from!.id}`);
+      await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue;
+    }
     if (msg?.text) {
       const card = await handleResearchInput(api, msg.text);
       if (card) { await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue; }
@@ -228,6 +233,12 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if (cq.data.startsWith("paper:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating paper trade…");
+      const card = await handlePaperCallback(api, cq.data, `telegram:${cq.from!.id}`);
+      await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
     if (cq.data.startsWith("portfolio:")) {
       await liveBot.answerCallbackQuery(cq.id, "Updating portfolio…");
       const card = await handlePortfolioCallback(api, cq.data);
@@ -253,7 +264,7 @@ async function processTgUpdates(): Promise<void> {
       console.warn("[telegram] answerCallbackQuery failed:", err instanceof Error ? err.message : err);
     }
 
-    if (result.ok && result.action === "approve" && result.proposalId) {
+    if (result.ok && result.action === "approve" && result.proposalId && !fillReceiptSent.has(result.proposalId)) {
       try {
         const fill = fillFromApprove(result.apiBody, result.proposalId);
         await deliver(fill.text);

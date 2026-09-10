@@ -23,6 +23,7 @@ services:
       - ../packages/db/drizzle/0006_social_discovery.sql:/docker-entrypoint-initdb.d/0006_social_discovery.sql:ro
       - ../packages/db/drizzle/0007_project_research.sql:/docker-entrypoint-initdb.d/0007_project_research.sql:ro
       - ../packages/db/drizzle/0008_market_pricing.sql:/docker-entrypoint-initdb.d/0008_market_pricing.sql:ro
+      - ../packages/db/drizzle/0009_paper_ledger.sql:/docker-entrypoint-initdb.d/0009_paper_ledger.sql:ro
     # localhost only — never expose publicly
     ports:
       - "127.0.0.1:5432:5432"
@@ -46,6 +47,9 @@ services:
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
       MARKET_PRICING_ENABLED: ${MARKET_PRICING_ENABLED:-false}
+      PAPER_LEDGER_ENABLED: ${PAPER_LEDGER_ENABLED:-false}
+      PAPER_CASH_ETH: ${PAPER_CASH_ETH:-1}
+      PAPER_CASH_USD: ${PAPER_CASH_USD:-0}
       CHAIN_ID: ${CHAIN_ID:-4663}
       BLOCKSCOUT_BASE_URL: ${BLOCKSCOUT_BASE_URL:-https://robinhoodchain.blockscout.com}
       ENABLE_TRADING: "false"

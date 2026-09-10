@@ -10,6 +10,11 @@ import { getDb } from "./db.js";
 import { decimalText } from "./validation.js";
 
 export type MemPaperPosition = {
+  ledgerManaged?: boolean;
+  remainingQuantity?: string | null;
+  remainingCost?: string | null;
+  realizedPnl?: string;
+  positionVersion?: number;
   id: string;
   tokenAddress: string;
   size: string | null;
@@ -71,16 +76,28 @@ function symbolFromScores(scores: unknown): string | null {
   return String(v).replace(/^\$/, "") || null;
 }
 
+function remainingMarketPnl(p: MemPaperPosition) {
+  if (!p.entrySnapshot) return null;
+  if (p.ledgerManaged && p.remainingQuantity != null && Number(p.remainingQuantity) === 0) return { price: 0, pnl: 0, percent: 0, currency: p.entrySnapshot.currency, value: 0 };
+  const entry = p.ledgerManaged ? { ...p.entrySnapshot, quantity: Number(p.remainingQuantity), cost: Number(p.remainingCost) } : p.entrySnapshot;
+  return marketPnl(entry, p.marketQuote, p.marketError);
+}
+
 /** Phone-ready position payload (GET /positions + Approve response). */
 export function toPositionPayload(p: MemPaperPosition) {
   const u = computeUnrealized(p);
   const size = /^(eth|usd):(.+)$/.exec(p.size ?? "");
-  const cost = size ? Number(size[2]) : NaN;
-  const market = p.entrySnapshot ? marketPnl(p.entrySnapshot, p.marketQuote, p.marketError) : null;
+  const cost = p.ledgerManaged ? Number(p.remainingCost) : size ? Number(size[2]) : NaN;
+  const market = remainingMarketPnl(p);
   const valuationStatus = p.entrySnapshot ? market ? "market_estimate" : "market_unavailable" : !p.entryPrice ? "entry_missing" : p.markSource === "stub_entry" ? "placeholder" : u.unrealizedPct == null ? "price_missing" : "recorded_mark";
   const pnl = market ? market.pnl : valuationStatus === "recorded_mark" && Number.isFinite(cost) && cost > 0 && u.unrealizedPct != null ? cost * u.unrealizedPct / 100 : null;
   return {
     id: p.id,
+    ledgerManaged: p.ledgerManaged ?? false,
+    remainingQuantity: p.remainingQuantity ?? null,
+    remainingCost: p.remainingCost ?? null,
+    realizedPnl: p.realizedPnl ?? "0",
+    positionVersion: p.positionVersion ?? 0,
     tokenCA: p.tokenAddress,
     tokenAddress: p.tokenAddress,
     chainId: p.chainId,
@@ -141,7 +158,7 @@ export function computeUnrealized(p: MemPaperPosition): {
   markLabel: string;
 } {
   if (p.entrySnapshot) {
-    const result = marketPnl(p.entrySnapshot, p.marketQuote, p.marketError);
+    const result = remainingMarketPnl(p);
     p.currentPrice = result ? String(result.price) : null;
     p.markSource = "dexscreener";
     p.markObservedAt = p.marketQuote?.observedAt ?? null;
@@ -273,6 +290,11 @@ export function openPaperFromProposal(proposal: {
 }
 
 type DbPositionRow = {
+  ledgerManaged?: boolean;
+  remainingQuantity?: string | null;
+  remainingCost?: string | null;
+  realizedPnl?: string;
+  positionVersion?: number;
   id: string;
   tokenAddress: string | null;
   size: string | null;
@@ -303,6 +325,11 @@ export function dbRowToMem(row: DbPositionRow): MemPaperPosition {
 
   return {
     id: row.id,
+    ledgerManaged: row.ledgerManaged,
+    remainingQuantity: row.remainingQuantity,
+    remainingCost: row.remainingCost,
+    realizedPnl: row.realizedPnl,
+    positionVersion: row.positionVersion,
     tokenAddress: (row.tokenAddress ?? "").toLowerCase() || "0x0",
     size: row.size,
     entryPrice: entry,

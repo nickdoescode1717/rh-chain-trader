@@ -24,7 +24,7 @@ const button = (text: string, callback_data: string) => ({ text, callback_data }
 /** Placeholder entry prices never count as current market prices. */
 export function positionMetrics(p: Position) {
   const match = /^(eth|usd):(.+)$/.exec(p.size ?? "");
-  const cost = match ? number(match[2]) : null, currency = match?.[1].toUpperCase() ?? "";
+  const cost = p.ledgerManaged ? number(p.remainingCost) : match ? number(match[2]) : null, currency = match?.[1].toUpperCase() ?? "";
   const entry = number(p.entryPrice), mark = number(p.currentPrice);
   if (p.entrySnapshot) {
     const age = Date.now() - Date.parse(p.marketQuote?.observedAt ?? "");
@@ -62,23 +62,27 @@ export function formatPositionsList(positions: Position[], requestedPage = 0): F
   const lines = ["📊 POSITIONS · PAPER", `${open.length} open${pages > 1 ? ` · Page ${page + 1}/${pages}` : ""}`, ""];
   if (!open.length) lines.push("No open paper positions.", "Approved paper proposals will appear here.");
   visible.forEach((p, i) => lines.push(...positionLines(p, page * 5 + i + 1), ""));
-  lines.push("P&L is unrealized; fees and slippage excluded.", "Tap a position for price sources and its full address.");
+  lines.push("Unrealized P&L includes recorded entry costs; future exit costs excluded.", "Tap a position for details and paper sells.");
   const nav = [...(page > 0 ? [button("‹ Previous", `portfolio:positions:${page - 1}`)] : []), button("Refresh", `portfolio:positions:${page}`),
     ...(page + 1 < pages ? [button("Next ›", `portfolio:positions:${page + 1}`)] : [])];
   return { text: lines.join("\n"), reply_markup: { inline_keyboard: [
     ...visible.filter((p) => /^[a-zA-Z0-9-]{1,40}$/.test(p.id)).map((p) => [button(`${label(p)} · ${shortAddress(p)}`, `portfolio:position:${p.id}`)]),
-    nav, [button("Balance", "portfolio:balance"), button("Projects", "research:list:0")]] } };
+    nav, [button("Balance", "portfolio:balance"), button("Trade history", "paper:history:0")]] } };
 }
 export function formatPositionDetail(p: Position): FormattedMessage {
   const m = positionMetrics(p), date = p.openedAt ? new Date(p.openedAt) : null;
   return { text: ["📋 POSITION · PAPER", "", ...positionLines(p), "", `Entry price  ${amount(m.entry)}${p.entrySnapshot ? ` ${p.entrySnapshot.currency}` : ""}`, `Recorded price  ${amount(m.mark)}${p.entrySnapshot ? ` ${p.entrySnapshot.currency}` : ""}`,
-    ...(p.entrySnapshot ? [`Quantity  ${amount(p.entrySnapshot.quantity)} tokens (estimated)`, `Entry saved  ${clean(p.entrySnapshot.capturedAt, 30)}`] : ["Legacy entry: price quote currency and freshness are not recorded."]),
+    ...(p.entrySnapshot ? [`Remaining quantity  ${amount(p.remainingQuantity ?? p.entrySnapshot.quantity)} tokens (estimated)`, `Entry saved  ${clean(p.entrySnapshot.capturedAt, 30)}`] : ["Legacy entry: price quote currency and freshness are not recorded."]),
+    ...(p.ledgerManaged ? [`Realized P&L  ${amount(p.realizedPnl, true)} ${m.currency}`] : []),
     ...(p.marketQuote ? [`Market source  DEX Screener`, `Observed  ${clean(p.marketQuote.observedAt, 30)}`, `ETH price  ${amount(p.marketQuote.priceEth)}`, "The provider does not supply the price's update timestamp.", clean(p.marketQuote.url, 180)] : ["Market observation pending or unavailable."]),
-    "Estimates only; fees, taxes and slippage excluded.",
+    "Entry costs included when recorded. Future exit costs excluded from unrealized P&L.",
     date && Number.isFinite(date.getTime()) ? `Opened  ${date.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Opened  unknown", "",
     `Contract · chain ${p.chainId ?? 4663}`, clean(p.tokenCA ?? p.tokenAddress, 42), "Issuer identity unverified.", "",
-    `Position ID  ${clean(p.id, 40)}`, "Selling is not connected yet.",
-  ].join("\n"), reply_markup: { inline_keyboard: [[button("‹ Positions", "portfolio:positions:0"), button("Balance", "portfolio:balance")]] } };
+    `Position ID  ${clean(p.id, 40)}`, p.ledgerManaged && Number(p.remainingQuantity) > 0 ? "Sell buttons open a preview; confirmation is required." : "Paper sell unavailable: no remaining recorded quantity.",
+  ].join("\n"), reply_markup: { inline_keyboard: [
+    ...(p.ledgerManaged && p.entrySnapshot && Number(p.remainingQuantity) > 0 && ["simulated_open", "alert_fired"].includes(p.status ?? "") ?
+      [[25, 50, 100].map(percent => button(`Sell ${percent}%`, `paper:preview:${percent}:${p.id}`))] : []),
+    [button("‹ Positions", "portfolio:positions:0"), button("Balance", "portfolio:balance")]] } };
 }
 export function formatBalance(b: PaperBalance): FormattedMessage {
   const tracked = b.positions.map((p) => ({ ...p, currentPrice: p.mark, status: "simulated_open" }));
@@ -91,10 +95,12 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
     `Total equity  ${amount(b.equityEth)} ETH${partial ? " (partial estimate)" : ""}`, "", `Open positions  ${tracked.length}`,
     priced.length ? `Unrealized P&L  ${amount(pnl, true)} ETH${missing || other ? " (priced ETH positions only)" : ""}` : tracked.length ? "Unrealized P&L  Unavailable — prices missing or placeholders" : "Unrealized P&L  0 ETH · no open positions",
     `${priced.length}/${eth.length} ETH positions have usable price estimates.`,
+    ...(b.ledgerReconciled ? [`Realized P&L  ${amount(b.realizedPnlEth, true)} ETH`, "Ledger cash reconciled.",
+      ...(b.accounts ?? []).filter(a => a.currency !== "ETH" && (Number(a.cash) !== 0 || Number(a.realizedPnl) !== 0)).map(a => `${a.currency} account · Cash ${amount(a.cash)} · Realized P&L ${amount(a.realizedPnl, true)}`)] : []),
     ...(missing ? ["Unpriced ETH positions are held at cost in the equity estimate."] : []),
     ...(other ? [`${other} non-ETH position(s) excluded from ETH totals; conversion unavailable.`] : []),
-    "", "Paper estimates; fees and slippage excluded.", "Real wallet funds and watched traders are not included."];
-  return { text: lines.join("\n"), reply_markup: { inline_keyboard: [[button("Positions", "portfolio:positions:0"), button("Refresh", "portfolio:balance")], [button("Projects", "research:list:0")]] } };
+    "", "Ledger fills include modeled entry/exit costs. Unpriced legacy holdings stay at cost.", "Real wallet funds and watched traders are not included."];
+  return { text: lines.join("\n"), reply_markup: { inline_keyboard: [[button("Positions", "portfolio:positions:0"), button("Refresh", "portfolio:balance")], [button("Trade history", "paper:history:0")]] } };
 }
 export async function handlePortfolioCallback(api: Pick<ApiClient, "listPositions" | "getPaperBalance">, data: string): Promise<FormattedMessage | null> {
   if (!data.startsWith("portfolio:")) return null;

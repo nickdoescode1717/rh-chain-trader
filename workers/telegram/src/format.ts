@@ -59,6 +59,7 @@ export function formatProposal(p: Proposal): FormattedMessage {
   const lines = [
     `${rating.line} · $${symbol} · 4663 · 📄 PAPER`,
     `CA: ${ca}`,
+    "Paper fill model: budget includes 0.3% fee; 0.5% adverse price slippage. Gas, token taxes and liquidity impact excluded.",
     "IDENTITY UNVERIFIED · Names, tickers and high scores do not prove this is the official token.",
     `Mcap: ${market.mcapLine}`,
     "━━━━━━━━━━━━━━━━━━━━",
@@ -94,7 +95,7 @@ export function formatProposal(p: Proposal): FormattedMessage {
     `Mcap: ${market.mcapLine}`,
     `Liq: ${market.liqLine}`,
     `Size: ${sizeLine(p)}`,
-    `Slippage: ${p.slippageBps ?? "-"} bps`,
+    "Paper execution uses the model shown above.",
     `Exits: ${exitsLine(p)}`,
     `Route/pair: ${route}`,
     "",

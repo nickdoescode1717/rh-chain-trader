@@ -42,6 +42,12 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Durable paper ledger (current branch, deployment verification pending)**
+- See `docs/PAPER_LEDGER.md`. Migration 0009 and `PAPER_LEDGER_ENABLED` add atomic, fixed-point paper buy/sell settlement, persistent currency cash and realized P&L, immutable fills, reconciliation, and restart-safe idempotency.
+- Telegram `/positions` previews 25/50/100% of remaining tokens; sell confirmations expire after 90 seconds and recheck price/position version. `/history` lists fills. All trade decisions still require the Telegram service credential and exact owner actor.
+- Legacy holdings keep known costs and unknown quantities; missing entry snapshots block modeled sells. Never fabricate old entries or reset balances. Do not revert to the old memory-accounting app after ledger fills.
+- Fees/slippage are explicitly modeled; gas, token taxes, liquidity impact and actual on-chain fillability are not simulated. No live adapter or automatic exit policy is implemented.
+
 **Market pricing and paper entry snapshots (deployed 2026-09-10 UTC)**
 - Revision `4fea48846e1e950ab3850dc63132dc95bb5c2572` deployed. `MARKET_PRICING_ENABLED=true` on API/collector. Migration 0008 adds quote cache and durable entry/mark metadata. See `docs/MARKET_PRICING.md` for selection rules and limitations.
 - Exact-token Robinhood/native-ETH pools only; no ticker matching or arbitrary `priceNative`→ETH assumption. Fresh quotes verified for CRUMBS and STONKBROKER. Provider receipt time is recorded; underlying trade/price timestamp is unavailable.

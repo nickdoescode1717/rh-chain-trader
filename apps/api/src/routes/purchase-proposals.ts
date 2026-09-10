@@ -11,6 +11,8 @@ import { captureEntry, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
 import { telegramDecisionError } from "../telegram-approval.js";
+import { ledgerBuy, ledgerEnabled, LedgerError } from "../paper-ledger.js";
+import { dbRowToMem } from "../paper-positions-mem.js";
 import {
   memPurchaseProposals,
   type MemPurchaseProposal,
@@ -240,6 +242,15 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
   const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
   if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
   const actor = actorBody.actor as string;
+  if (ledgerEnabled()) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return c.json({ error: "invalid_id" }, 400);
+    try {
+      const result = await ledgerBuy(id, actor);
+      const p = dbRowToMem(result.position);
+      p.marketQuote = result.fill.quote as MarketQuote;
+      return c.json({ ...approveResponse(result.proposal, "postgres", null, p), fill: result.fill, replayed: result.replayed });
+    } catch (e) { return c.json({ error: e instanceof LedgerError ? e.message : "paper_settlement_unavailable" }, e instanceof LedgerError ? e.status : 503); }
+  }
   const preferred =
     (actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null) as string | null;
   const db = getDb();

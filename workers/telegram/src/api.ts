@@ -24,6 +24,10 @@ export type Proposal = {
 };
 
 export type Position = {
+  ledgerManaged?: boolean;
+  remainingQuantity?: string | null;
+  remainingCost?: string | null;
+  realizedPnl?: string;
   id: string;
   tokenCA?: string;
   tokenAddress?: string;
@@ -59,6 +63,9 @@ export type BuyWallet = {
 };
 
 export type PaperBalance = {
+  ledgerReconciled?: boolean;
+  realizedPnlEth?: string;
+  accounts?: { currency: string; cash: string; realizedPnl: string }[];
   paperOnly: true;
   valuationComplete?: boolean;
   cashEth: string;
@@ -88,6 +95,10 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  previewPaperSell: (id: string, percent: number, actor: string) => Promise<SellPreview>;
+  confirmPaperSell: (id: string, actor: string) => Promise<{ fill: PaperFill; replayed: boolean }>;
+  cancelPaperSell: (id: string, actor: string) => Promise<{ cancelled: boolean }>;
+  listPaperFills: () => Promise<PaperFill[]>;
   baseUrl: string;
   listProposals: () => Promise<Proposal[]>;
   approveProposal: (id: string, actor: string) => Promise<unknown>;
@@ -100,6 +111,13 @@ export type ApiClient = {
   watchProject: (project: { handle: string; domain: string; category: string }) => Promise<ResearchProject>;
   setProjectMonitoring: (handle: string, enabled: boolean) => Promise<ResearchProject>;
 };
+
+export type PaperExecution = { mode: "paper"; side: "buy" | "sell"; quantity: string; fee: string; cashDelta: string;
+  executionPrice: string; cost: string; realizedPnl: string; remainingQuantity?: string; remainingCost?: string };
+export type PaperFill = { id: string; positionId: string; currency: string; side: "buy" | "sell";
+  execution: PaperExecution; createdAt: string; quote: { tokenAddress: string } };
+export type SellPreview = { id: string; positionId: string; tokenCA: string; percent: number; currency: string;
+  minimumNet: string; expiresAt: string; preview: PaperExecution };
 
 export type ResearchReport = {
   researchedAt: string;
@@ -146,6 +164,13 @@ async function jsonFetch(
 }
 
 export function createApiClient(baseUrl: string, approvalToken = process.env.TELEGRAM_APPROVAL_TOKEN): ApiClient {
+  async function paper<T>(path: string, body?: unknown): Promise<T> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/paper-sells/${path}`), body === undefined ? undefined : {
+      method: "POST", headers: decisionHeaders(), body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(typeof (r.body as { error?: unknown })?.error === "string" ? (r.body as { error: string }).error : "paper_request_failed");
+    return (r.body as { data: T }).data;
+  }
   function decisionHeaders(): Record<string, string> {
     if (!approvalToken || approvalToken.length < 32) throw new Error("Telegram approval credential is not configured on the worker.");
     return { "x-telegram-approval-token": approvalToken };
@@ -160,6 +185,10 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
   }
   return {
     baseUrl,
+    previewPaperSell: (id, percent, actor) => paper<SellPreview>(`${encodeURIComponent(id)}/preview`, { percent, actor }),
+    confirmPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/confirm`, { actor }),
+    cancelPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/cancel`, { actor }),
+    listPaperFills: () => paper<PaperFill[]>("history"),
     listResearchProjects: () => research<ResearchProject[]>("projects"),
     getResearchProject: (handle) => research<ResearchProject>(`projects/${encodeURIComponent(handle)}`),
     watchProject: (project) => research<ResearchProject>("projects", project),
