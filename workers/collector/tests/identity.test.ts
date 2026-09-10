@@ -25,7 +25,9 @@ test("factory proof is emitter/ABI/token/deployer bound and cannot use arbitrary
   const word=(a:string)=>"0x"+"0".repeat(24)+a.slice(2);
   f.receipt.logs=[{address:PONS_V2_LAUNCH_FACTORY,transactionHash:txHash,blockHash,topics:[PONS_V2_TOKEN_LAUNCHED,word(token),word(deployer),word(deployer)]}];
   assert.equal((await inspectIdentityChain(claim,reader(f))).status,"matched");
-  f.receipt.logs[0].address=deployer;assert.equal((await inspectIdentityChain(claim,reader(f))).status,"conflicting");
+  f.tx.to=deployer;assert.equal((await inspectIdentityChain(claim,reader(f))).status,"matched"); // routed launch still has authenticated factory emitter
+  f.receipt.logs[0].topics[3]=word(token);assert.equal((await inspectIdentityChain(claim,reader(f))).status,"conflicting");
+  f.receipt.logs[0].address=deployer;assert.notEqual((await inspectIdentityChain(claim,reader(f))).status,"matched");
   f.tx.to=deployer;assert.equal((await inspectIdentityChain(claim,reader(f))).reason,"unsupported_factory_creation_path");
 });
 test("source evidence comes from fetched pinned URL, records content hash, and fails closed on provider errors",async()=>{

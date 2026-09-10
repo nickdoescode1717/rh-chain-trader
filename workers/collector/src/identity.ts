@@ -48,9 +48,11 @@ export async function inspectIdentityChain(c: Claim, rpc: Rpc): Promise<Identity
   } else {
     // Only this explicit ABI adapter is supported. Generic factory events and pool creation are insufficient.
     const emitter = PONS_V2_LAUNCH_FACTORY.toLowerCase();
-    if (low(tx.to) !== emitter) return missing("unsupported_factory_creation_path");
     const addressWord = (value: unknown) => typeof value === "string" && /^0x0{24}[a-fA-F0-9]{40}$/.test(value) ? `0x${value.slice(-40).toLowerCase()}` : "";
-    const logs = Array.isArray(receipt.logs) ? receipt.logs.filter((l: any) => low(l.address) === emitter && low(l.topics?.[0]) === PONS_V2_TOKEN_LAUNCHED && addressWord(l.topics?.[1]) === c.tokenAddress) : [];
+    const factoryLogs = Array.isArray(receipt.logs) ? receipt.logs.filter((l: any) => low(l.address) === emitter && low(l.topics?.[0]) === PONS_V2_TOKEN_LAUNCHED) : [];
+    if (!factoryLogs.length) return missing("unsupported_factory_creation_path");
+    // A router/multisig may be tx.to. Only the actual emitter and canonical receipt establish the factory event.
+    const logs = factoryLogs.filter((l:any) => addressWord(l.topics?.[1]) === c.tokenAddress);
     if (logs.length !== 1 || logs[0].removed === true || low(logs[0].blockHash) !== low(receipt.blockHash) ||
       low(logs[0].transactionHash) !== c.creationTxHash || logs[0].topics.length !== 4 || addressWord(logs[0].topics[3]) !== c.deployerAddress) return conflict("factory_token_or_deployer_mismatch");
     method = "pons_v2_token_launched";
