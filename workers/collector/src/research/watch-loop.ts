@@ -4,12 +4,13 @@ import { discoverWatch } from "./watch-discovery.js";
 import { createWatchSocialReader } from "./twitterapi.js";
 import { inspectProject } from "./inspect.js";
 import { enrichWithGrok } from "./grok.js";
+import { budgetedXReader } from "./budgeted-x.js";
 
 export async function runWatchLoop(): Promise<void> {
   if (process.env.PROJECT_RESEARCH_ENABLED !== "true" || !process.env.DATABASE_URL) return;
   const db = createDb(process.env.DATABASE_URL);
   const social = process.env.WATCH_X_ENABLED === "true" && process.env.TWITTERAPI_IO_KEY
-    ? createWatchSocialReader(process.env.TWITTERAPI_IO_KEY) : null;
+    ? budgetedXReader(db, createWatchSocialReader(process.env.TWITTERAPI_IO_KEY)) : null;
   for (;;) {
     try { await scanNextWatch(db, social); }
     catch { console.warn("[watch] collection unavailable; retrying on schedule"); }
@@ -39,9 +40,9 @@ export async function scanNextWatch(db: ReturnType<typeof createDb>, social: Par
     if (discovery.domain) {
       report = await inspect({ handle: discovery.primaryHandle, domain: discovery.domain, category: known?.category ?? "unknown" });
       for (const [i, post] of posts.entries()) report.evidence.push({ id: `watch-post-${i}`, url: post.url, kind: "recent_post",
-        finding: `${post.publishedAt ?? "publication time unknown"}: ${post.text}`, observedAt: discovery.observedAt });
+        finding: `${post.publishedAt ?? "publication time unknown"}: ${post.text}`, observedAt: post.observedAt ?? discovery.observedAt });
       for (const [i, account] of discovery.accounts.entries()) report.evidence.push({ id: `watch-account-${i}`, url: account.sourceUrl,
-        kind: "related_account", finding: `@${account.handle}: ${account.relation}. ${account.description ?? "Profile not collected"}`, observedAt: discovery.observedAt });
+        kind: "related_account", finding: `@${account.handle}: ${account.relation}. ${account.description ?? "Profile not collected"}`, observedAt: account.observedAt ?? discovery.observedAt });
     }
     const enriched = report ? { ...report, grok: await enrich(report) } : null;
     await db.transaction(async tx => {

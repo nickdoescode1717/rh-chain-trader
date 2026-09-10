@@ -1,13 +1,14 @@
 import { xHandle, xProfile, type WatchDiscovery } from "@rh/core";
 import { readPublicPage, withinDomain } from "./public-web.js";
-import { type WatchSocialReader, type WatchProfile } from "./twitterapi.js";
+import { type WatchSocialReader, type WatchProfile, type WatchPost } from "./twitterapi.js";
 
 /** Links are research candidates, never proof of affiliation or token ownership. */
 export async function discoverWatch(input: { handle: string | null; domain: string | null },
   read = readPublicPage, social: WatchSocialReader | null = null, now = new Date()) {
   const result: WatchDiscovery = { observedAt: now.toISOString(), primaryHandle: input.handle, domain: input.domain,
     accounts: [], domains: [], links: [], addresses: [], gaps: [] };
-  const posts: { text: string; url: string; publishedAt: string | null }[] = [];
+  const posts: WatchPost[] = [];
+  const gap = (err: unknown, fallback: string) => result.gaps.push(err instanceof Error && /^x_(daily_budget_exhausted|refresh_deferred|provider_backoff)$/.test(err.message) ? err.message : fallback);
   const profiles = new Map<string, WatchProfile>();
   const addAccount = (handle: string, sourceUrl: string, relation: string) => {
     if (result.accounts.some(a => a.handle === handle) || result.accounts.length >= 12) return;
@@ -24,6 +25,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
     const p = await social!.profile(handle); profiles.set(handle, p);
     const account = result.accounts.find(a => a.handle === handle)!;
     account.id = p.id; account.description = p.description;
+    account.observedAt = p.observedAt;
     if (handle === result.primaryHandle && result.domain && p.domains.length && !p.domains.includes(result.domain)) result.gaps.push("profile_domain_conflict");
     const sourceUrl = `https://x.com/${handle}`;
     addresses(p.description, sourceUrl);
@@ -41,7 +43,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
         for (const m of p.description.matchAll(/(?:^|\s)@([a-zA-Z0-9_]{1,15})\b/g)) {
           const h = xHandle(m[1]); if (h) addAccount(h, `https://x.com/${input.handle}`, "bio_mention_unverified");
         }
-      } catch { result.gaps.push("x_profile_unavailable"); }
+      } catch (err) { gap(err, "x_profile_unavailable"); }
     }
   }
   if (!social) result.gaps.push("twitterapi_setup_pending");
@@ -82,9 +84,9 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
     // One hop, six profiles/timelines total; no recursive graph growth or wallet enrollment.
     for (const account of result.accounts.slice(0, 6)) {
       try { if (!profiles.has(account.handle)) await profile(account.handle); }
-      catch { result.gaps.push("related_profile_unavailable"); continue; }
-      try { const recent = await social.posts(account.handle); posts.push(...recent); for (const p of recent) addresses(p.text, p.url); }
-      catch { result.gaps.push("recent_posts_unavailable"); }
+      catch (err) { gap(err, "related_profile_unavailable"); continue; }
+      try { const recent = await social.posts(account.handle, account.handle === result.primaryHandle); posts.push(...recent); for (const p of recent) addresses(p.text, p.url); }
+      catch (err) { gap(err, "recent_posts_unavailable"); }
     }
     if (result.accounts.length > 6) result.gaps.push("related_account_limit_reached");
     result.gaps.push("recent_posts_sample_only");

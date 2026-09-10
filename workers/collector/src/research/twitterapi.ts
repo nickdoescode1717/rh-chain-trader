@@ -1,9 +1,9 @@
 import { watchInput, xHandle } from "@rh/core";
-export type WatchProfile = { handle: string; id: string; description: string; domains: string[] };
-export type WatchPost = { text: string; url: string; publishedAt: string | null };
+export type WatchProfile = { handle: string; id: string; description: string; domains: string[]; observedAt?: string };
+export type WatchPost = { text: string; url: string; publishedAt: string | null; observedAt?: string };
 export interface WatchSocialReader {
   profile(handle: string): Promise<WatchProfile>;
-  posts(handle: string): Promise<WatchPost[]>;
+  posts(handle: string, priority?: boolean): Promise<WatchPost[]>;
 }
 /** Fixed read-only vendor endpoints. This credential is never an official-X bearer token. */
 export function createWatchSocialReader(key: string, fetcher: typeof fetch = fetch): WatchSocialReader {
@@ -12,7 +12,7 @@ export function createWatchSocialReader(key: string, fetcher: typeof fetch = fet
     const url = new URL(`https://api.twitterapi.io/twitter/user/${endpoint}`);
     url.searchParams.set("userName", handle);
     const response = await fetcher(url, { headers: { "X-API-Key": key }, redirect: "error", signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) throw new Error("x_provider_unavailable");
+    if (!response.ok) throw new Error(`x_http_${response.status}`);
     const reader = response.body?.getReader(); if (!reader) throw new Error("x_invalid_response");
     let size = 0; const chunks: Uint8Array[] = [];
     for (;;) {
@@ -41,7 +41,7 @@ export function createWatchSocialReader(key: string, fetcher: typeof fetch = fet
     },
     async posts(handle) {
       const body = await read("last_tweets", handle);
-      if (!Array.isArray(body.tweets)) throw new Error("x_invalid_posts");
+      if (!Array.isArray(body.tweets) || body.tweets.length > 20) throw new Error("x_invalid_posts");
       return body.tweets.slice(0, 20).filter((p: any) => typeof p.id === "string" && /^\d+$/.test(p.id)
         && typeof p.text === "string" && xHandle(p.author?.userName ?? "") === handle).map((p: any) => ({
         text: p.text.slice(0, 5000), url: `https://x.com/${handle}/status/${p.id}`,

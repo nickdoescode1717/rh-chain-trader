@@ -26,6 +26,7 @@ services:
       - ../packages/db/drizzle/0009_paper_ledger.sql:/docker-entrypoint-initdb.d/0009_paper_ledger.sql:ro
       - ../packages/db/drizzle/0010_identity_gate.sql:/docker-entrypoint-initdb.d/0010_identity_gate.sql:ro
       - ../packages/db/drizzle/0011_watch_intake.sql:/docker-entrypoint-initdb.d/0011_watch_intake.sql:ro
+      - ../packages/db/drizzle/0012_x_budget.sql:/docker-entrypoint-initdb.d/0012_x_budget.sql:ro
     # localhost only — never expose publicly
     ports:
       - "127.0.0.1:5432:5432"

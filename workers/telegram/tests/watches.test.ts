@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { handleWatchInput, formatWatch, createWatchAlerts } from "../src/watches.js";
+import { handleWatchInput, formatWatch, createWatchAlerts, formatXUsage } from "../src/watches.js";
 import type { WatchTarget } from "../src/api.js";
 const fixture = (): WatchTarget => ({ id: "a".repeat(8) + "-aaaa-aaaa-aaaa-" + "a".repeat(12), inputKey: "x:project", handle: "project", domain: null,
   enabled: true, projectHandle: null, status: "queued", lastAttemptAt: null, lastError: null, report: null, discovery: null });
+test("usage card distinguishes reservations from billing and explains rolling limit", () => {
+  const c=formatXUsage({dailyLimitUsd:0.5,reservedTodayUsd:0.1,reserved24hUsd:0.2,remainingUsd:0.3,requests24h:10,blockedUntil:null,resetsAt:'later',accounting:'conservative'});
+  assert.match(c.text,/\$0.50/);assert.match(c.text,/\$0.3000/);assert.match(c.text,/not the provider invoice/);assert.match(c.text,/rolling 24-hour/);
+});
 test("one-input watches send the input and owner actor; list includes unresolved watches", async () => {
   const w = fixture(), calls: unknown[] = [];
   const api = { addWatch: async (...a: unknown[]) => { calls.push(a); return w; }, getWatch: async () => w, monitorWatch: async () => w,

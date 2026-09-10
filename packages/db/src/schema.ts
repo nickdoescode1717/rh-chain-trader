@@ -317,3 +317,16 @@ export const watchTargets = pgTable("watch_targets", {
   lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }), lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const xRequestBudget = pgTable("x_request_budget", {
+  id: uuid("id").defaultRandom().primaryKey(), cacheKey: text("cache_key").notNull(),
+  reservedCredits: integer("reserved_credits").notNull(), state: text("state").notNull().default("reserved"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const xResponseCache = pgTable("x_response_cache", {
+  cacheKey: text("cache_key").primaryKey(), payload: jsonb("payload"),
+  observedAt: timestamp("observed_at", { withTimezone: true }), leaseId: uuid("lease_id").references(() => xRequestBudget.id),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+});
+export const xProviderState = pgTable("x_provider_state", {
+  id: integer("id").primaryKey(), blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+});

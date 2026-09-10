@@ -19,7 +19,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
 - **Telegram is the primary user interface and the ONLY trade-approval channel** (Nick, 2026-09-09): concise research/options, watch controls, proposal decisions and position updates through the existing bot. Grok provides analysis and may draft proposals; it cannot approve/reject trades. Prioritize backend quality and efficiency. The web dashboard is optional administration; do not expand/polish it without a new request.
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The older graph scanner targets the official X API; the one-input watch adapter now supports TwitterAPI.io profiles/recent posts, with live credential validation pending. do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; the owner supplied a key and authorized a US$0.50/day ceiling; see docs/X_BUDGET.md. The older graph scanner targets the official X API; the one-input watch adapter now supports TwitterAPI.io profiles/recent posts, with a live profile lookup validated. Do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
 - **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. New paper buys now require the deployed owner-reviewed source and deployment identity gate; unverified or conflicting identities block entry. No project is auto-trusted; X authentication and additional factory adapters remain missing.
 - Untrusted web/X cannot authorize trades.
 
@@ -41,6 +41,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**X budget and caching (2026-09-10)**
+- Migration 0012 reserves paid calls under a US$0.50 rolling-24-hour ceiling, with shared daily profile/hourly primary/six-hour related timeline caches and persistent failure backoff. Telegram /usage reports conservative reservations, not provider billing. Key is installed server-side; never print it. See docs/X_BUDGET.md.
+
 
 **One-input watch intake (deployed 2026-09-10)**
 - Application a93f960 deployed; 107 local tests and isolated API/collector database checks passed. Live public discovery found tradedotcv from trade.cv, and 0.88 ETH / 3 holdings were preserved. See docs/deployments/2026-09-10-simple-watch.md.
@@ -169,5 +173,6 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ---
 
 *Maintained by Coder for multi-agent continuity. Update when state or rules change.*
+
 
 

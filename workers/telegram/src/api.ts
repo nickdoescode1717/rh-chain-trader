@@ -98,6 +98,7 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  getXUsage: () => Promise<XUsage>;
   listWatches: () => Promise<WatchTarget[]>;
   getWatch: (id: string) => Promise<WatchTarget>;
   addWatch: (input: string, actor: string) => Promise<WatchTarget>;
@@ -158,6 +159,8 @@ export type WatchTarget = {
     domains: { domain: string; sourceUrl: string }[]; links: { url: string; kind: string; sourceUrl: string }[];
     addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
 };
+export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;
+  requests24h: number; blockedUntil: string | null; resetsAt: string; accounting: string };
 
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
@@ -217,6 +220,7 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
   return {
     baseUrl,
     listWatches: () => research("watches"),
+    getXUsage: () => research("watches/usage"),
     getWatch: id => research(`watches/${encodeURIComponent(id)}`),
     addWatch: (input, actor) => watchMutation("", { input, actor }),
     monitorWatch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/monitoring`, { enabled, actor }),

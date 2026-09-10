@@ -1,12 +1,16 @@
 import { Hono } from "hono";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { watchInput } from "@rh/core";
-import { researchProjects, socialAccounts, watchTargets } from "@rh/db";
+import { researchProjects, socialAccounts, watchTargets, xUsage } from "@rh/db";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
 import { telegramDecisionError } from "../telegram-approval.js";
 
 export const watchRoutes = new Hono();
+watchRoutes.get("/usage", async c => {
+  const db = getDb(); if (!db) return c.json({ error: "research_requires_postgres" }, 503);
+  return c.json({ data: await xUsage(db) });
+});
 watchRoutes.get("/", async c => {
   const db = getDb(); if (!db) return c.json({ error: "research_requires_postgres" }, 503);
   return c.json({ data: await db.select().from(watchTargets).orderBy(desc(watchTargets.createdAt)) });

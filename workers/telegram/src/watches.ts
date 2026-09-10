@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import type { ApiClient, WatchTarget } from "./api.js";
+import type { ApiClient, WatchTarget, XUsage } from "./api.js";
 import type { BotCard } from "./research.js";
 import type { AlertStore } from "./research-alerts.js";
-type WatchApi = Pick<ApiClient, "addWatch" | "getWatch" | "listWatches" | "monitorWatch" | "listResearchProjects">;
+type WatchApi = Pick<ApiClient, "addWatch" | "getWatch" | "listWatches" | "monitorWatch" | "listResearchProjects"> & Partial<Pick<ApiClient, "getXUsage">>;
 const clean = (s: string, n = 250) => s.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, " ").slice(0, n);
 const button = (text: string, callback_data: string) => ({ text, callback_data });
 export function formatWatch(w: WatchTarget): BotCard {
@@ -23,6 +23,7 @@ export function formatWatch(w: WatchTarget): BotCard {
       if (r.grok?.analysis) lines.push(`Grok: ${clean(r.grok.analysis.summary, 350)}`);
     }
     if (d.gaps.includes("twitterapi_setup_pending")) lines.push("\nX profile/posts collection is waiting for TwitterAPI.io setup. Website research continues where a domain is available.");
+    if (d.gaps.includes("x_daily_budget_exhausted")) lines.push("\nX data allowance is exhausted. Website research continues; use /usage to check the budget.");
     const gaps = d.gaps.filter(g => g !== "twitterapi_setup_pending");
     if (gaps.length) lines.push(`Coverage notes: ${clean(gaps.join("; ").replaceAll("_", " "), 450)}`);
   }
@@ -31,16 +32,17 @@ export function formatWatch(w: WatchTarget): BotCard {
   return { text: lines.join("\n").slice(0, 3900), reply_markup: { inline_keyboard: [
     [button("Refresh", `watch:show:${w.id}`), button(w.enabled ? "Pause" : "Resume", `watch:${w.enabled ? "pause" : "resume"}:${w.id}`)],
     ...(w.projectHandle ? [[button("Full research", `research:report:${w.projectHandle}`), button("Token identity", `identity:list:${w.projectHandle}`)]] : []),
-    [button("All watches", "watch:list:0")],
+    [button("All watches", "watch:list:0"), button("X data budget", "watch:usage:0")],
   ] } };
 }
 export async function handleWatchInput(api: WatchApi, input: string, actor: string): Promise<BotCard | null> {
   const [command, ...args] = input.trim().split(/\s+/), base = command.toLowerCase().split("@")[0];
   const callback = input.startsWith("watch:");
-  if (!callback && base !== "/watch" && base !== "/projects") return null;
+  if (!callback && base !== "/watch" && base !== "/projects" && base !== "/usage") return null;
   // Preserve the old explicit mapping command for existing users.
   if (base === "/watch" && args.length > 1) return null;
   try {
+    if (base === "/usage" || input === "watch:usage:0") return formatXUsage(await api.getXUsage!());
     if (base === "/watch") {
       if (args.length !== 1) return { text: "Send /watch @account, /watch https://x.com/account, or /watch project.com. I’ll find the rest." };
       return formatWatch(await api.addWatch(args[0], actor));
@@ -60,12 +62,24 @@ export async function handleWatchInput(api: WatchApi, input: string, actor: stri
     return { text: ["YOUR WATCHES", `Page ${current + 1}/${last + 1}`, ...shown.map(r => `${clean(r.label)} · ${r.enabled ? "watching" : "paused"}`),
       "\nAdd any project: /watch @account or /watch project.com"].join("\n"), reply_markup: { inline_keyboard: [
         ...shown.map(r => [button(clean(r.label, 50), r.target)]),
+        [button("X data budget", "watch:usage:0")],
         [...(current > 0 ? [button("Previous", `watch:list:${current - 1}`)] : []), ...(current < last ? [button("Next", `watch:list:${current + 1}`)] : [])],
       ].filter(r => r.length) } };
   } catch (e) {
     return { text: e instanceof Error && e.message === "research_http_400" ? "That link could not be read. Use an X profile (not a post) or a public website, for example /watch @tradedotcv."
       : "Watch service is unavailable right now. Please retry; your existing watches are preserved." };
   }
+}
+export function formatXUsage(u: XUsage): BotCard {
+  const dollars = (n: number) => `$${n.toFixed(4)}`;
+  return { text: ["X DATA BUDGET · USD", `Limit: $${u.dailyLimitUsd.toFixed(2)} per day`,
+    `Reserved today (UTC): ${dollars(u.reservedTodayUsd)}`, `Reserved in last 24h: ${dollars(u.reserved24hUsd)}`,
+    `Available allowance: ${dollars(u.remainingUsd)}`, `Paid request attempts in last 24h: ${u.requests24h}`,
+    "\nConservative cost reservations, not the provider invoice. Failures retain their allowance; cache reads are free.",
+    "The rolling 24-hour guard prevents a spending burst at midnight. Allowance returns as reservations age out.",
+    "Profiles: daily · Main accounts: hourly · Related accounts: every 6 hours.",
+    ...(u.blockedUntil && Date.parse(u.blockedUntil) > Date.now() ? [`Provider requests paused until ${clean(u.blockedUntil)}.`] : []),
+  ].join("\n"), reply_markup: { inline_keyboard: [[button("Refresh budget", "watch:usage:0"), button("Watches", "watch:list:0")]] } };
 }
 export function createWatchAlerts(api: Pick<ApiClient, "listWatches">, store: AlertStore, destination: string, send: (card: BotCard) => Promise<void>) {
   let state = store.load();

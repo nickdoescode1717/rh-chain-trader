@@ -12,7 +12,7 @@ Robinhood brokerage listings are not evidence of deployment on the target chain.
 
 ## Reconcile the original and latest instructions
 
-- Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The older official X graph scanner still needs a vendor adapter. One-input watches now have a separate bounded TwitterAPI.io profile/recent-post adapter; live credential validation remains pending. Preserve the Grok analysis/bot interfaces; do not configure credentials or enable paid collection now.
+- Nick selected **TwitterAPI.io** for X scanning on 2026-09-09 and explicitly deferred setup. The older official X graph scanner still needs a vendor adapter. One-input watches now have a separate bounded TwitterAPI.io profile/recent-post adapter; a live profile lookup now passed. Nick supplied the key and authorized US$0.50/day, with caching and persistent spending controls required before activation. Preserve Grok analysis/bot interfaces. See X_BUDGET.md.
 - Nick subsequently made **Telegram primary and the only trade-approval interface**. This supersedes earlier Grok-primary/Telegram-fallback language. Grok keeps analysis and proposal drafting, not approval authority. Future automatic policies must be authorized through Telegram; an LLM never authorizes itself.
 - Nick emphasized **copycat avoidance as critical**. Future live eligibility requires chain-specific official issuer/token/deployer provenance. Name/ticker/logo matches, subdomain evidence, follower links, an address mention or a model score cannot establish identity. Conflicting or missing issuer evidence must block execution. The deployed paper identity gate now requires an owner-reviewed explicit source declaration plus fresh canonical direct/Pons V2 deployment evidence. X authentication and additional deployment adapters remain missing; identity verification is not a safety verdict.
 - The original structured prompt starts with explicit approval for each buy and allows sells under rules approved in advance.
@@ -82,4 +82,5 @@ See [PRELAUNCH_RESEARCH.md](PRELAUNCH_RESEARCH.md) for the implemented research 
 
 ## Simplified watch intake (2026-09-10)
 See [SIMPLE_WATCH.md](SIMPLE_WATCH.md): one X profile or website is sufficient to save a watch. Linked accounts, website evidence, public subdomains and mentioned addresses are assembled with provenance. Unresolved/ambiguous mappings stay visible; no automatic issuer trust. Related-account collection is bounded to six profiles and recent timelines when the deferred vendor setup is enabled.
+
 

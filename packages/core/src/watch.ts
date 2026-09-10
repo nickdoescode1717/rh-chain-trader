@@ -30,7 +30,7 @@ export function watchInput(raw: string): { key: string; handle: string | null; d
 
 export type WatchDiscovery = {
   observedAt: string; primaryHandle: string | null; domain: string | null;
-  accounts: { handle: string; sourceUrl: string; relation: string; description?: string; id?: string }[];
+  accounts: { handle: string; sourceUrl: string; relation: string; description?: string; id?: string; observedAt?: string }[];
   domains: { domain: string; sourceUrl: string }[];
   links: { url: string; kind: string; sourceUrl: string }[];
   addresses: { address: string; sourceUrl: string }[];
