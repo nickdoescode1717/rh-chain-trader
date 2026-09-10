@@ -6,6 +6,7 @@ import { positionRoutes } from "../src/routes/positions.js";
 import { paperBalanceRoutes } from "../src/routes/paper-balance.js";
 import { memPurchaseProposals } from "../src/purchase-proposals-mem.js";
 import { dbRowToMem, memPaperPositions, openPaperFromProposal, toPositionPayload } from "../src/paper-positions-mem.js";
+import { captureEntry, type MarketQuote } from "@rh/core";
 
 const app = new Hono();
 app.route("/purchase-proposals", purchaseProposalRoutes);
@@ -47,6 +48,22 @@ test("position payload recalculates P&L without first reading the balance and re
   assert.equal(result.pnlCurrency, "USD"); assert.equal(result.currentValue, 50);
   p.currentPrice = "0";
   assert.equal(toPositionPayload(p).unrealizedPnl, -100);
+});
+
+test("market snapshots survive hydration, mark updates cannot overwrite them, and stale prices clear P&L", async () => {
+  const quote: MarketQuote = { chainId: 4663, tokenAddress: tokenCA, source: "dexscreener", pairId: `0x${"a".repeat(64)}`, quoteAddress: `0x${"0".repeat(40)}`,
+    priceEth: 0.001, priceUsd: 2, liquidityUsd: 10000, observedAt: new Date().toISOString(), sourceUpdatedAt: null, url: "https://dexscreener.com" };
+  const entry = captureEntry(quote, tokenCA, "eth:0.1");
+  const p = dbRowToMem({ id: "market-position", tokenAddress: tokenCA, size: "eth:0.1", entryPrice: "0.001", currentPrice: "0.001",
+    pnlAbs: null, pnlPct: null, proposalId: null, openedAt: new Date(), closedAt: null, status: "simulated_open", note: null,
+    entrySnapshot: entry, markSource: "dexscreener", markObservedAt: new Date() });
+  p.marketQuote = { ...quote, priceEth: 0.002 }; memPaperPositions.push(p);
+  assert.equal(toPositionPayload(p).unrealizedPnl, 0.1);
+  assert.equal((await post(`/positions/${p.id}/paper-mark`, { mark: "0.3" })).status, 409);
+  p.marketQuote.observedAt = new Date(Date.now() - 181000).toISOString();
+  assert.equal(toPositionPayload(p).unrealizedPnl, null);
+  assert.equal(toPositionPayload(p).valuationStatus, "market_unavailable");
+  assert.equal(p.entrySnapshot?.unitPrice, 0.001);
 });
 
 test("hydrated token labels survive mapping and more than 40 open positions remain visible", async () => {

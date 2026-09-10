@@ -4,3 +4,4 @@ export * from "./scoring/risk.js";
 export * from "./addresses.js";
 export * from "./topics.js";
 export * from "./research.js";
+export * from "./market.js";

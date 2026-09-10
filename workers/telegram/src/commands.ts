@@ -28,6 +28,7 @@ export function fillFromApprove(apiBody: unknown, proposalId: string) {
   const data = (body.data ?? {}) as Record<string, unknown>;
   const handoff = (body.signerHandoff ?? {}) as Record<string, unknown>;
   const position = (body.position ?? {}) as Record<string, unknown>;
+  const entry = position.entrySnapshot as Position["entrySnapshot"];
   const s = (v: unknown) => (v == null ? null : String(v));
   return formatPaperFillSuccess({
     proposalId,
@@ -39,6 +40,7 @@ export function fillFromApprove(apiBody: unknown, proposalId: string) {
     tokenCA: s(data.tokenCA) ?? s(handoff.tokenCA) ?? s(position.tokenCA),
     symbol: s(data.tokenSymbol) ?? s(data.symbol) ?? s(position.symbol),
     price: s(position.entryPrice),
+    entryCurrency: entry?.currency, quantity: entry?.quantity, observedAt: entry?.quote.observedAt,
     next: s(body.next) ?? "signer_handoff_stub",
     signed: body.signed === true,
     txSubmitted: body.txSubmitted === true,
@@ -63,6 +65,7 @@ export function fillFromPosition(pos: Position, proposalId: string) {
     tokenCA: s(pos.tokenCA) ?? s(pos.tokenAddress),
     symbol: s(pos.symbol),
     price: s(pos.entryPrice),
+    entryCurrency: pos.entrySnapshot?.currency, quantity: pos.entrySnapshot?.quantity, observedAt: pos.entrySnapshot?.quote.observedAt,
     next: "signer_handoff_stub",
     signed: false,
     txSubmitted: false,

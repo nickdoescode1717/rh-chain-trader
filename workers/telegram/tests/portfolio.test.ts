@@ -15,6 +15,19 @@ test("P&L and value use the position currency, including losses and zero-price m
   assert.equal(loss.pnl, -100); assert.equal(loss.percent, -100); assert.equal(loss.value, 0); assert.equal(loss.currency, "USD");
   assert.match(formatPositionsList([position({ size: "usd:100", currentPrice: "1" })]).text, /−50 USD \(−50%\)/);
 });
+
+test("market P&L requires a fresh successful observation and displays its recorded source", () => {
+  const p = position({ markSource: "dexscreener", valuationStatus: "market_estimate", unrealizedPnl: 0.05, currentValue: 0.15, pnlPct: 50,
+    entrySnapshot: { currency: "ETH", quantity: 0.05, unitPrice: 2, capturedAt: new Date().toISOString(), quote: { observedAt: new Date().toISOString(), source: "dexscreener" } },
+    marketQuote: { chainId: 4663, tokenAddress: position().tokenCA!, priceUsd: 6000, priceEth: 3, observedAt: new Date().toISOString(), source: "dexscreener", url: "https://dexscreener.com/robinhood/test" } });
+  assert.equal(positionMetrics(p).pnl, 0.05);
+  assert.match(formatPositionsList([p]).text, /market estimate/);
+  assert.match(formatPositionDetail(p).text, /DEX Screener/);
+  p.marketError = "provider_rate_limited"; assert.equal(positionMetrics(p).pnl, null);
+  p.marketError = null; p.marketQuote!.observedAt = new Date(Date.now() - 181000).toISOString();
+  assert.equal(positionMetrics(p).pnl, null);
+  assert.match(formatPositionsList([p]).text, /stale/);
+});
 test("missing, placeholder and untrusted prices never appear as measured zero P&L", () => {
   for (const changes of [{ entryPrice: null }, { currentPrice: null }, { markSource: "stub_entry", currentPrice: "2" }, { markSource: "oracle_pending" }, { markSource: undefined }, { currentPrice: "Infinity" }, { size: "eth:-2" }]) {
     const p = position(changes);

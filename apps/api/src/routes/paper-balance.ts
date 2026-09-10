@@ -10,6 +10,7 @@ import {
   getPaperCashEth,
   listOpenPositionsMerged,
   sumPositionsEth,
+  toPositionPayload,
 } from "../paper-positions-mem.js";
 
 export const paperBalanceRoutes = new Hono();
@@ -30,6 +31,7 @@ paperBalanceRoutes.get("/", async (c) => {
     if (u.unrealizedEth == null || p.markSource === "stub_entry") incompleteMarks = true;
     else unrealizedSum += u.unrealizedEth;
     return {
+      ...toPositionPayload(p),
       id: p.id,
       tokenCA: p.tokenAddress,
       symbol: p.symbol ?? undefined,

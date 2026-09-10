@@ -72,6 +72,9 @@ export async function handleCallback(
     return { ok: false, action: "unknown", detail: "unreachable" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (/fresh_entry_quote_required|entry_quote_storage_unavailable/.test(msg)) {
+      return { ok: false, action: parsed.action, detail: "A fresh eligible price is needed. Try Approve again in a minute. No position opened." };
+    }
     return { ok: false, action: parsed.action, detail: msg };
   }
 }

@@ -5,8 +5,9 @@
  * See docs/PURCHASE_PROPOSALS.md + docs/POSITIONS.md + docs/ISOLATED_SIGNER.md
  */
 import { Hono } from "hono";
-import { desc, eq } from "drizzle-orm";
-import { auditLog, positions, purchaseProposals } from "@rh/db";
+import { and, desc, eq } from "drizzle-orm";
+import { auditLog, positions, purchaseProposals, marketQuotes } from "@rh/db";
+import { captureEntry, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
 import { telegramDecisionError } from "../telegram-approval.js";
@@ -17,6 +18,7 @@ import {
 import {
   openPaperFromProposal,
   toPositionPayload,
+  memPaperPositions,
 } from "../paper-positions-mem.js";
 import {
   buildSignerHandoffStub,
@@ -175,34 +177,6 @@ purchaseProposalRoutes.post("/", async (c) => {
   );
 });
 
-async function persistPositionDb(
-  pos: ReturnType<typeof openPaperFromProposal>
-): Promise<void> {
-  const db = getDb();
-  if (!db) return;
-  try {
-    await db.insert(positions).values({
-      id: pos.id,
-      tokenAddress: pos.tokenAddress,
-      size: pos.size ?? undefined,
-      entryPrice: pos.entryPrice ?? undefined,
-      currentPrice: pos.currentPrice ?? undefined,
-      pnlAbs: pos.pnlAbs ?? undefined,
-      pnlPct: pos.pnlPct ?? undefined,
-      proposalId: pos.proposalId ?? undefined,
-      openedAt: new Date(pos.openedAt),
-      status: "simulated_open",
-      note: pos.note ?? "PAPER simulated_open from Approve",
-      channel: "telegram",
-    });
-  } catch (err) {
-    console.warn(
-      "[purchase-proposals] positions insert failed (mem still has it):",
-      err instanceof Error ? err.message : err
-    );
-  }
-}
-
 function approveResponse(
   row: {
     id: string;
@@ -214,9 +188,10 @@ function approveResponse(
     rationale?: string | null;
   },
   source: "memory" | "postgres",
-  preferredBuyAddress?: string | null
+  preferredBuyAddress?: string | null,
+  recordedPosition?: ReturnType<typeof openPaperFromProposal>
 ) {
-  const pos = openPaperFromProposal({
+  const pos = recordedPosition ?? openPaperFromProposal({
     id: row.id,
     tokenAddress: row.tokenAddress,
     size: row.size,
@@ -272,6 +247,7 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
   if (!db) {
     const row = memPurchaseProposals.find((p) => p.id === id);
     if (!row) return c.json({ error: "not_found" }, 404);
+    if (process.env.MARKET_PRICING_ENABLED === "true") return c.json({ error: "entry_quote_storage_unavailable" }, 503);
     if (row.status !== "pending_nick") {
       return c.json({ error: "not_pending_nick", status: row.status }, 409);
     }
@@ -285,60 +261,35 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
     return c.json(approveResponse(row, "memory", preferred));
   }
 
-  const [existing] = await db.select().from(purchaseProposals).where(eq(purchaseProposals.id, id));
-  if (!existing) return c.json({ error: "not_found" }, 404);
-  if (existing.status !== "pending_nick") {
-    return c.json({ error: "not_pending_nick", status: existing.status }, 409);
-  }
-  if (isExpired(existing.expiresAt)) {
-    const [expired] = await db
-      .update(purchaseProposals)
-      .set({ status: "expired" })
-      .where(eq(purchaseProposals.id, id))
-      .returning();
-    return c.json({ error: "expired", data: toPhonePayload(expired) }, 409);
-  }
-
-  const [row] = await db
-    .update(purchaseProposals)
-    .set({
-      status: "approved",
-      approvedAt: new Date(),
-      note: "PAPER_APPROVED -- position opened + signer_handoff_stub; no sign",
-    })
-    .where(eq(purchaseProposals.id, id))
-    .returning();
-
-  const resp = approveResponse(row, "postgres", preferred);
-  await persistPositionDb(
-    openPaperFromProposal({
-      id: row.id,
-      tokenAddress: row.tokenAddress,
-      size: row.size,
-      scores: row.scores,
-      rationale: row.rationale,
-    })
-  );
-
-  await db.insert(auditLog).values({
-    action: "purchase_proposal_approved",
-    actor,
-    detail: {
-      id: row.id,
-      tokenAddress: row.tokenAddress,
-      next: "signer_handoff_stub",
-      positionId: resp.position.id,
-      revalidateRequired: true,
-      signed: false,
-      txSubmitted: false,
-      paperOnly: true,
-      buyAddress: resp.signerHandoff.buyAddress,
-      buyAddressSelection: resp.signerHandoff.buyAddressSelection,
-      keyModel: resp.signerHandoff.keyModel,
-    },
+  // Lock a proposal while recording its approval, immutable entry snapshot and position.
+  // No memory mutation or success response until all writes commit.
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(purchaseProposals).where(eq(purchaseProposals.id, id)).for("update");
+    if (!existing) return { error: "not_found", status: 404 as const };
+    if (existing.status !== "pending_nick") return { error: "not_pending_nick", status: 409 as const };
+    if (isExpired(existing.expiresAt)) return { error: "expired", status: 409 as const };
+    let entrySnapshot: EntrySnapshot | null = null;
+    if (process.env.MARKET_PRICING_ENABLED === "true") {
+      const [cached] = await tx.select().from(marketQuotes).where(eq(marketQuotes.tokenAddress, (existing.tokenAddress ?? "").toLowerCase()));
+      if (!cached || cached.lastError) return { error: "fresh_entry_quote_required", status: 409 as const };
+      try { entrySnapshot = captureEntry(cached.quote as MarketQuote | null, existing.tokenAddress ?? "", existing.size); }
+      catch { return { error: "fresh_entry_quote_required", status: 409 as const }; }
+    }
+    const pos = openPaperFromProposal({ ...existing, entrySnapshot, register: false });
+    const [row] = await tx.update(purchaseProposals).set({ status: "approved", approvedAt: new Date(),
+      note: "PAPER_APPROVED -- recorded position; no real transaction" }).where(eq(purchaseProposals.id, id)).returning();
+    await tx.insert(positions).values({ id: pos.id, tokenAddress: pos.tokenAddress, size: pos.size, entryPrice: pos.entryPrice,
+      currentPrice: pos.currentPrice, entrySnapshot: pos.entrySnapshot, markSource: pos.markSource,
+      markObservedAt: pos.markObservedAt ? new Date(pos.markObservedAt) : null, proposalId: pos.proposalId,
+      openedAt: new Date(pos.openedAt), status: "simulated_open", note: pos.note ?? "Paper position", channel: "telegram" });
+    await tx.insert(auditLog).values({ action: "purchase_proposal_approved", actor,
+      detail: { id: row.id, positionId: pos.id, paperOnly: true, signed: false, txSubmitted: false,
+        entrySource: pos.entrySnapshot?.quote.source ?? "legacy_unpriced", entryObservedAt: pos.entrySnapshot?.quote.observedAt ?? null } });
+    return { row, pos };
   });
-
-  return c.json(resp);
+  if ("error" in result) return c.json({ error: result.error, paperOnly: true }, result.status);
+  memPaperPositions.unshift(result.pos);
+  return c.json(approveResponse(result.row, "postgres", preferred, result.pos));
 });
 
 purchaseProposalRoutes.post("/:id/reject", async (c) => {
@@ -386,8 +337,9 @@ purchaseProposalRoutes.post("/:id/reject", async (c) => {
       rejectedAt: new Date(),
       note: actorBody.reason ? `REJECTED: ${actorBody.reason}` : "REJECTED_BY_NICK",
     })
-    .where(eq(purchaseProposals.id, id))
+    .where(and(eq(purchaseProposals.id, id), eq(purchaseProposals.status, "pending_nick")))
     .returning();
+  if (!row) return c.json({ error: "not_pending_nick" }, 409);
 
   await db.insert(auditLog).values({
     action: "purchase_proposal_rejected",

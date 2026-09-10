@@ -26,6 +26,14 @@ export function positionMetrics(p: Position) {
   const match = /^(eth|usd):(.+)$/.exec(p.size ?? "");
   const cost = match ? number(match[2]) : null, currency = match?.[1].toUpperCase() ?? "";
   const entry = number(p.entryPrice), mark = number(p.currentPrice);
+  if (p.entrySnapshot) {
+    const age = Date.now() - Date.parse(p.marketQuote?.observedAt ?? "");
+    const usable = !p.marketError && p.valuationStatus === "market_estimate" && age >= 0 && age <= 180_000
+      && p.marketQuote?.chainId === 4663 && p.marketQuote?.tokenAddress === (p.tokenCA ?? p.tokenAddress)?.toLowerCase()
+      && [p.unrealizedPnl, p.currentValue, p.pnlPct].every((v) => typeof v === "number" && Number.isFinite(v));
+    return { cost, currency, entry, mark, reason: usable ? null : "market price unavailable or stale",
+      pnl: usable ? p.unrealizedPnl! : null, percent: usable ? p.pnlPct! : null, value: usable ? p.currentValue! : null };
+  }
   let reason: string | null = null;
   if (entry == null || entry <= 0) reason = "entry price missing";
   else if (p.markSource === "stub_entry") reason = "placeholder price; awaiting market data";
@@ -40,10 +48,12 @@ export function positionMetrics(p: Position) {
 }
 function positionLines(p: Position, index?: number): string[] {
   const m = positionMetrics(p);
+  const age = p.marketQuote ? Math.max(0, Math.floor((Date.now() - Date.parse(p.marketQuote.observedAt)) / 1000)) : null;
   return [`${index == null ? "" : `${index}. `}${label(p)} · ${shortAddress(p)}`, `Invested  ${amount(m.cost)} ${m.currency}`,
+    ...(p.marketQuote ? [`Price  $${amount(p.marketQuote.priceUsd)} · ${p.marketError || age == null || !Number.isFinite(age) || age > 180 ? "last known; unavailable/stale" : `observed ${age}s ago`}`] : []),
     ...(m.reason ? [`P&L  Unavailable — ${m.reason}`] : [
       `${m.pnl! >= 0 ? "🟢" : "🔴"} P&L  ${amount(m.pnl, true)} ${m.currency} (${pct(m.percent!)})`,
-      `Value  ${amount(m.value)} ${m.currency} · recorded manual price`])];
+      `Value  ${amount(m.value)} ${m.currency} · ${p.entrySnapshot ? "market estimate" : "recorded manual price"}`])];
 }
 export function formatPositionsList(positions: Position[], requestedPage = 0): FormattedMessage {
   const open = openPositions(positions), pages = Math.max(1, Math.ceil(open.length / 5));
@@ -52,7 +62,7 @@ export function formatPositionsList(positions: Position[], requestedPage = 0): F
   const lines = ["📊 POSITIONS · PAPER", `${open.length} open${pages > 1 ? ` · Page ${page + 1}/${pages}` : ""}`, ""];
   if (!open.length) lines.push("No open paper positions.", "Approved paper proposals will appear here.");
   visible.forEach((p, i) => lines.push(...positionLines(p, page * 5 + i + 1), ""));
-  lines.push("P&L is unrealized, before fees. No live price feed.", "Tap a position for its full address and price details.");
+  lines.push("P&L is unrealized; fees and slippage excluded.", "Tap a position for price sources and its full address.");
   const nav = [...(page > 0 ? [button("‹ Previous", `portfolio:positions:${page - 1}`)] : []), button("Refresh", `portfolio:positions:${page}`),
     ...(page + 1 < pages ? [button("Next ›", `portfolio:positions:${page + 1}`)] : [])];
   return { text: lines.join("\n"), reply_markup: { inline_keyboard: [
@@ -61,8 +71,10 @@ export function formatPositionsList(positions: Position[], requestedPage = 0): F
 }
 export function formatPositionDetail(p: Position): FormattedMessage {
   const m = positionMetrics(p), date = p.openedAt ? new Date(p.openedAt) : null;
-  return { text: ["📋 POSITION · PAPER", "", ...positionLines(p), "", `Entry price  ${amount(m.entry)}`, `Recorded price  ${amount(m.mark)}`,
-    "Price quote currency and freshness are not recorded.", "No live price feed; manual marks are estimates, before fees.",
+  return { text: ["📋 POSITION · PAPER", "", ...positionLines(p), "", `Entry price  ${amount(m.entry)}${p.entrySnapshot ? ` ${p.entrySnapshot.currency}` : ""}`, `Recorded price  ${amount(m.mark)}${p.entrySnapshot ? ` ${p.entrySnapshot.currency}` : ""}`,
+    ...(p.entrySnapshot ? [`Quantity  ${amount(p.entrySnapshot.quantity)} tokens (estimated)`, `Entry saved  ${clean(p.entrySnapshot.capturedAt, 30)}`] : ["Legacy entry: price quote currency and freshness are not recorded."]),
+    ...(p.marketQuote ? [`Market source  DEX Screener`, `Observed  ${clean(p.marketQuote.observedAt, 30)}`, `ETH price  ${amount(p.marketQuote.priceEth)}`, "The provider does not supply the price's update timestamp.", clean(p.marketQuote.url, 180)] : ["Market observation pending or unavailable."]),
+    "Estimates only; fees, taxes and slippage excluded.",
     date && Number.isFinite(date.getTime()) ? `Opened  ${date.toISOString().slice(0, 16).replace("T", " ")} UTC` : "Opened  unknown", "",
     `Contract · chain ${p.chainId ?? 4663}`, clean(p.tokenCA ?? p.tokenAddress, 42), "Issuer identity unverified.", "",
     `Position ID  ${clean(p.id, 40)}`, "Selling is not connected yet.",
@@ -78,10 +90,10 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
     `Positions  ${amount(b.totals.positionsEth)} ETH${partial ? " (partial estimate)" : " (recorded marks)"}`,
     `Total equity  ${amount(b.equityEth)} ETH${partial ? " (partial estimate)" : ""}`, "", `Open positions  ${tracked.length}`,
     priced.length ? `Unrealized P&L  ${amount(pnl, true)} ETH${missing || other ? " (priced ETH positions only)" : ""}` : tracked.length ? "Unrealized P&L  Unavailable — prices missing or placeholders" : "Unrealized P&L  0 ETH · no open positions",
-    `${priced.length}/${eth.length} ETH positions have usable recorded marks.`,
+    `${priced.length}/${eth.length} ETH positions have usable price estimates.`,
     ...(missing ? ["Unpriced ETH positions are held at cost in the equity estimate."] : []),
     ...(other ? [`${other} non-ETH position(s) excluded from ETH totals; conversion unavailable.`] : []),
-    "", "Paper estimates, before fees. No live price feed.", "Real wallet funds and watched traders are not included."];
+    "", "Paper estimates; fees and slippage excluded.", "Real wallet funds and watched traders are not included."];
   return { text: lines.join("\n"), reply_markup: { inline_keyboard: [[button("Positions", "portfolio:positions:0"), button("Refresh", "portfolio:balance")], [button("Projects", "research:list:0")]] } };
 }
 export async function handlePortfolioCallback(api: Pick<ApiClient, "listPositions" | "getPaperBalance">, data: string): Promise<FormattedMessage | null> {

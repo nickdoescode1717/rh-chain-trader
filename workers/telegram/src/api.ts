@@ -39,6 +39,10 @@ export type Position = {
   unrealizedPnl?: number | null;
   pnlCurrency?: string | null;
   currentValue?: number | null;
+  entrySnapshot?: { currency: "ETH" | "USD"; unitPrice: number; quantity: number; capturedAt: string; quote: { observedAt: string; source: string } } | null;
+  marketQuote?: { chainId: number; tokenAddress: string; priceUsd: number; priceEth: number; observedAt: string; source: string; url: string } | null;
+  marketError?: string | null;
+  markObservedAt?: string | null;
   status?: string;
   symbol?: string | null;
   proposalId?: string | null;
@@ -59,7 +63,7 @@ export type PaperBalance = {
   valuationComplete?: boolean;
   cashEth: string;
   equityEth: string;
-  positions: Array<{
+  positions: Array<Position & {
     id: string;
     tokenCA?: string;
     symbol?: string;

@@ -165,6 +165,9 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
   // Ensure DB opens are in mem before mark (e.g. post-restart)
   await hydrateOpenFromDb();
 
+  if (memPaperPositions.find((p) => p.id === id)?.entrySnapshot) {
+    return c.json({ error: "market_priced_position", note: "This position uses recorded market observations; manual overrides are disabled." }, 409);
+  }
   const pos = setPaperMark(id, mark, source);
   if (!pos) {
     return c.json(
@@ -182,7 +185,7 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
     try {
       await db
         .update(positions)
-        .set({ currentPrice: pos.currentPrice, pnlAbs: pos.pnlAbs, pnlPct: pos.pnlPct })
+        .set({ currentPrice: pos.currentPrice, pnlAbs: pos.pnlAbs, pnlPct: pos.pnlPct, markSource: pos.markSource, markObservedAt: pos.markObservedAt ? new Date(pos.markObservedAt) : null })
         .where(eq(positions.id, id));
     } catch (err) {
       console.warn(

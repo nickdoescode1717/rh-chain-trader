@@ -182,6 +182,9 @@ export const positions = pgTable("positions", {
   size: text("size"), // eth:0.05 | tokens:…
   entryPrice: text("entry_price"),
   currentPrice: text("current_price"), // nullable until oracle
+  entrySnapshot: jsonb("entry_snapshot").$type<Record<string, unknown>>(),
+  markSource: text("mark_source"),
+  markObservedAt: timestamp("mark_observed_at", { withTimezone: true }),
   pnlAbs: text("pnl_abs"),
   pnlPct: real("pnl_pct"),
   thresholds: jsonb("thresholds").$type<Record<string, unknown>>(),
@@ -203,6 +206,14 @@ export type Score = typeof scores.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type PurchaseProposal = typeof purchaseProposals.$inferSelect;
 export type Position = typeof positions.$inferSelect;
+
+export const marketQuotes = pgTable("market_quotes", {
+  tokenAddress: text("token_address").primaryKey(),
+  chainId: integer("chain_id").notNull().default(4663),
+  quote: jsonb("quote").$type<Record<string, unknown>>(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+  lastError: text("last_error"),
+});
 
 /** X discovery is evidence collection only; these records never authorize orders. */
 export const socialAccounts = pgTable("social_accounts", {

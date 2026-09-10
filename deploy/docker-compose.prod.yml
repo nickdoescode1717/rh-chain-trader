@@ -22,6 +22,7 @@ services:
       - ../packages/db/drizzle/0002_verify_factories.sql:/docker-entrypoint-initdb.d/0002_verify_factories.sql:ro
       - ../packages/db/drizzle/0006_social_discovery.sql:/docker-entrypoint-initdb.d/0006_social_discovery.sql:ro
       - ../packages/db/drizzle/0007_project_research.sql:/docker-entrypoint-initdb.d/0007_project_research.sql:ro
+      - ../packages/db/drizzle/0008_market_pricing.sql:/docker-entrypoint-initdb.d/0008_market_pricing.sql:ro
     # localhost only — never expose publicly
     ports:
       - "127.0.0.1:5432:5432"
@@ -44,6 +45,7 @@ services:
       TELEGRAM_APPROVAL_TOKEN: ${TELEGRAM_APPROVAL_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
+      MARKET_PRICING_ENABLED: ${MARKET_PRICING_ENABLED:-false}
       CHAIN_ID: ${CHAIN_ID:-4663}
       BLOCKSCOUT_BASE_URL: ${BLOCKSCOUT_BASE_URL:-https://robinhoodchain.blockscout.com}
       ENABLE_TRADING: "false"
@@ -70,6 +72,7 @@ services:
       X_GRAPH_INTERVAL_MS: ${X_GRAPH_INTERVAL_MS:-3600000}
       X_MAX_GRAPH_USERS: ${X_MAX_GRAPH_USERS:-10000}
       PROJECT_RESEARCH_ENABLED: ${PROJECT_RESEARCH_ENABLED:-false}
+      MARKET_PRICING_ENABLED: ${MARKET_PRICING_ENABLED:-false}
       GROK_RESEARCH_ENABLED: ${GROK_RESEARCH_ENABLED:-false}
       XAI_API_KEY: ${XAI_API_KEY:-}
       XAI_MODEL: ${XAI_MODEL:-}
