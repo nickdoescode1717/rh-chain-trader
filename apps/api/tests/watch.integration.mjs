@@ -19,6 +19,7 @@ await sql`update watch_targets set last_attempt_at=now(), discovery='{"fixture":
 const before=(await read('/watches/'+first.id));
 const duplicate=(await add('https://twitter.com/newwatch?s=11')).body.data;
 assert.equal(first.id,duplicate.id);assert.equal(duplicate.lastAttemptAt,before.lastAttemptAt);assert.deepEqual(duplicate.discovery,before.discovery);
+assert.equal(duplicate.revision,before.revision); // Repeating /watch must not cancel an in-flight scan.
 const website=(await add('https://newproject.org/about')).body.data;
 assert.equal(website.handle,null);assert.equal(website.domain,'newproject.org');
 await sql`insert into research_projects(handle,domain,enabled,report,last_researched_at) values ('knownwatch','known.org',false,'{"fixture":true}',now())`;

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { watchInput } from "@rh/core";
 import { researchProjects, socialAccounts, watchTargets } from "@rh/db";
 import { getDb } from "../db.js";
@@ -34,10 +34,11 @@ watchRoutes.post("/", async c => {
     if (projectHandle) {
       await tx.update(researchProjects).set({ enabled: true }).where(eq(researchProjects.handle, projectHandle));
       await tx.update(socialAccounts).set({ enabled: true }).where(eq(socialAccounts.handle, projectHandle));
-      await tx.update(watchTargets).set({ enabled: true, revision: sql`${watchTargets.revision} + 1` }).where(eq(watchTargets.projectHandle, projectHandle));
+      await tx.update(watchTargets).set({ enabled: true, revision: sql`${watchTargets.revision} + 1` }).where(and(eq(watchTargets.projectHandle, projectHandle), eq(watchTargets.enabled, false)));
     }
     const [saved] = await tx.insert(watchTargets).values({ inputKey: parsed.key, handle: parsed.handle, domain: parsed.domain, projectHandle })
-      .onConflictDoUpdate({ target: watchTargets.inputKey, set: { enabled: true, revision: sql`${watchTargets.revision} + 1` } }).returning();
+      .onConflictDoUpdate({ target: watchTargets.inputKey, set: { enabled: true,
+        revision: sql`case when ${watchTargets.enabled} then ${watchTargets.revision} else ${watchTargets.revision} + 1 end` } }).returning();
     return saved;
   });
   return c.json({ data }, 201);

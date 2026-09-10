@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import postgres from 'postgres';
+import {createRequire} from 'node:module';
+const require=createRequire(import.meta.url);
+const postgres=createRequire(require.resolve('@rh/db'))('postgres');
 import {createDb} from '@rh/db';
 import {scanNextWatch} from '../dist/research/watch-loop.js';
 assert.match(new URL(process.env.DATABASE_URL).pathname,/^\/rh_pricing_test_[a-f0-9]{16}$/);
