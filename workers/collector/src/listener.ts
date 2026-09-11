@@ -1,4 +1,5 @@
 import {waitForCollection} from "./collection-control.js";
+import { recordLaunchDeployment } from "./launch-preparation.js";
 /**
  * On-chain launch listener (paper / research only).
  * Polls Pons V2 + pools.trade entries via eth_getLogs, upserts tokens + evidence.
@@ -143,6 +144,7 @@ async function upsertLaunch(
   log: RpcLog,
   chainId: number
 ): Promise<boolean> {
+  await recordLaunchDeployment(db, log, chainId);
   const tokenAddress = decodeTokenAddress(source, log);
   if (!tokenAddress) {
     console.warn(

@@ -308,6 +308,8 @@ export const identityReviews = pgTable("identity_reviews", {
 
 /** Durable one-input research intake. Discoveries never grant issuer trust. */
 export const watchTargets = pgTable("watch_targets", {
+  launchFlag: boolean("launch_flag").notNull().default(false),
+  launchReport: jsonb("launch_report").$type<import("@rh/core").LaunchReport>(),
   id: uuid("id").defaultRandom().primaryKey(), inputKey: text("input_key").notNull().unique(),
   handle: text("handle"), domain: text("domain"),
   projectHandle: text("project_handle").references(() => researchProjects.handle),
@@ -317,6 +319,13 @@ export const watchTargets = pgTable("watch_targets", {
   lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }), lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+export const launchDeployments = pgTable("launch_deployments", {
+  id: uuid("id").defaultRandom().primaryKey(), chainId: integer("chain_id").notNull(),
+  tokenAddress: text("token_address").notNull(), deployerAddress: text("deployer_address").notNull(),
+  creationTxHash: text("creation_tx_hash").notNull(), factory: text("factory").notNull(),
+  blockNumber: integer("block_number").notNull(), blockHash: text("block_hash").notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("launch_deployments_chain_token_tx").on(t.chainId, t.tokenAddress, t.creationTxHash)]);
 export const xRequestBudget = pgTable("x_request_budget", {
   id: uuid("id").defaultRandom().primaryKey(), cacheKey: text("cache_key").notNull(),
   reservedCredits: integer("reserved_credits").notNull(), state: text("state").notNull().default("reserved"),

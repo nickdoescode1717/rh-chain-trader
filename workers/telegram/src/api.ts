@@ -103,7 +103,8 @@ export type ApiClient = {
   getXUsage: () => Promise<XUsage>;
   listWatches: () => Promise<WatchTarget[]>;
   getWatch: (id: string) => Promise<WatchTarget>;
-  addWatch: (input: string, actor: string) => Promise<WatchTarget>;
+  addWatch: (input: string, actor: string, launch?: boolean) => Promise<WatchTarget>;
+  flagLaunch: (id: string, enabled: boolean, actor: string) => Promise<WatchTarget>;
   monitorWatch: (id: string, enabled: boolean, actor: string) => Promise<WatchTarget>;
   identityProject: (handle:string) => Promise<IdentityProject>;
   identityClaim: (id:string) => Promise<{claim:IdentityClaim;verdict:IdentityVerdict}>;
@@ -154,6 +155,11 @@ export type ResearchProject = {
   lastResearchedAt: string | null; lastError: string | null; report?: ResearchReport | null;
 };
 export type WatchTarget = {
+  launchFlag?: boolean; launchReport?: {
+    version: 1; observedAt: string; domain: string | null; pagesChecked: string[]; gaps: string[];
+    candidates: { address: string; role: "deployer" | "token" | "factory" | "mention"; sourceUrl: string; excerpt: string; observedAt: string; tokenDeclaration: boolean }[];
+    matches: { tokenAddress: string; deployerAddress: string; creationTxHash: string; factory: string; blockNumber: number; basis: "token" | "deployer"; claimId: string | null }[];
+  } | null;
   id: string; inputKey: string; handle: string | null; domain: string | null; projectHandle: string | null;
   enabled: boolean; status: string; lastAttemptAt: string | null; lastError: string | null; report: ResearchReport | null;
   discovery: { observedAt: string; primaryHandle: string | null; domain: string | null;
@@ -228,7 +234,8 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
     listWatches: () => research("watches"),
     getXUsage: () => research("watches/usage"),
     getWatch: id => research(`watches/${encodeURIComponent(id)}`),
-    addWatch: (input, actor) => watchMutation("", { input, actor }),
+    addWatch: (input, actor, launch) => watchMutation("", { input, actor, ...(launch ? { launch: true } : {}) }),
+    flagLaunch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/launch`, { enabled, actor }),
     monitorWatch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/monitoring`, { enabled, actor }),
     identityProject: handle=>identity(`projects/${encodeURIComponent(handle)}`),
     identityClaim: id=>identity(`claims/${encodeURIComponent(id)}`),

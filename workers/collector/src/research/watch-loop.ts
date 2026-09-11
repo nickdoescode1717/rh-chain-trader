@@ -6,6 +6,7 @@ import { createWatchSocialReader } from "./twitterapi.js";
 import { inspectProject } from "./inspect.js";
 import { enrichWithGrok } from "./grok.js";
 import { budgetedXReader } from "./budgeted-x.js";
+import { inspectLaunch } from "./launch-dd.js";
 
 export async function runWatchLoop(): Promise<void> {
   if (process.env.PROJECT_RESEARCH_ENABLED !== "true" || !process.env.DATABASE_URL) return;
@@ -37,7 +38,8 @@ export async function scanNextWatch(db: ReturnType<typeof createDb>, social: Par
   try {
     let known = null;
     if (claimed.projectHandle) [known] = await db.select().from(researchProjects).where(eq(researchProjects.handle, claimed.projectHandle));
-    const { discovery, posts } = await discover({ handle: claimed.handle ?? known?.handle ?? null, domain: claimed.domain ?? known?.domain ?? null }, undefined, social);
+    const { discovery, posts, documents } = await discover({ handle: claimed.handle ?? known?.handle ?? null, domain: claimed.domain ?? known?.domain ?? null }, undefined, social);
+    const launchReport = claimed.launchFlag ? await inspectLaunch(discovery, documents) : null;
     let report = null;
     if (discovery.domain) {
       report = await inspect({ handle: discovery.primaryHandle, domain: discovery.domain, category: known?.category ?? "unknown" });
@@ -65,6 +67,7 @@ export async function scanNextWatch(db: ReturnType<typeof createDb>, social: Par
         }
       }
       await tx.update(watchTargets).set({ discovery: discovery as unknown as Record<string, unknown>, report: enriched, projectHandle,
+        launchReport: launchReport ? { ...launchReport, matches: current.launchReport?.matches ?? [] } : current.launchReport,
         status: discovery.domain ? "watching" : "waiting_for_website", lastError: null }).where(eq(watchTargets.id, claimed.id));
     });
   } catch {

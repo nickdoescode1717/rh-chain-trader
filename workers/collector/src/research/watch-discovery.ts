@@ -1,4 +1,4 @@
-import { xHandle, xProfile, type WatchDiscovery } from "@rh/core";
+import { xHandle, xProfile, type WatchDiscovery, type LaunchDocument } from "@rh/core";
 import { readPublicPage, withinDomain } from "./public-web.js";
 import { type WatchSocialReader, type WatchProfile, type WatchPost } from "./twitterapi.js";
 
@@ -8,6 +8,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
   const result: WatchDiscovery = { observedAt: now.toISOString(), primaryHandle: input.handle, domain: input.domain,
     accounts: [], domains: [], links: [], addresses: [], gaps: [] };
   const posts: WatchPost[] = [];
+  const documents: LaunchDocument[] = [];
   const gap = (err: unknown, fallback: string) => result.gaps.push(err instanceof Error && /^x_(daily_budget_exhausted|refresh_deferred|provider_backoff)$/.test(err.message) ? err.message : fallback);
   const profiles = new Map<string, WatchProfile>();
   const addAccount = (handle: string, sourceUrl: string, relation: string) => {
@@ -29,6 +30,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
     if (handle === result.primaryHandle && result.domain && p.domains.length && !p.domains.includes(result.domain)) result.gaps.push("profile_domain_conflict");
     const sourceUrl = `https://x.com/${handle}`;
     addresses(p.description, sourceUrl);
+    documents.push({ url: sourceUrl, text: p.description, observedAt: p.observedAt ?? now.toISOString(), kind: "profile" });
     return p;
   };
   if (input.handle) {
@@ -57,6 +59,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
         const page = await read(url, result.domain);
         if (page.status < 200 || page.status >= 300 || !/text\/html/i.test(page.contentType)) { result.gaps.push("website_page_unavailable"); continue; }
         const html = page.text.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
+        documents.push({ url: page.url, text: html, observedAt: new Date().toISOString(), kind: "website" });
         addresses(html, page.url);
         for (const match of html.matchAll(/\bhref\s*=\s*["']([^"']+)["']/gi)) {
           try {
@@ -65,7 +68,7 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
             const h = xProfile(link.href);
             if (h) { siteHandles.add(h); addAccount(h, page.url, "website_link_unverified"); continue; }
             const same = withinDomain(link.hostname, result.domain);
-            const kind = same && /(?:docs|about|team)/i.test(link.pathname + link.hostname) ? "project_page"
+            const kind = same && /(?:docs|about|team|token|contract|deploy|launch|address|whitepaper)/i.test(link.pathname + link.hostname) ? "project_page"
               : link.hostname === "github.com" ? "repository_link" : null;
             if (!kind) continue;
             link.hash = ""; link.search = "";
@@ -92,5 +95,6 @@ export async function discoverWatch(input: { handle: string | null; domain: stri
     result.gaps.push("recent_posts_sample_only");
   }
   result.gaps = [...new Set(result.gaps)];
-  return { discovery: result, posts };
+  documents.push(...posts.map(p => ({ url: p.url, text: p.text, observedAt: p.observedAt ?? now.toISOString(), kind: "post" as const })));
+  return { discovery: result, posts, documents };
 }

@@ -14,6 +14,7 @@ export interface LogFilter {
 }
 
 export interface RpcLog {
+  blockHash?: string;
   address: string;
   topics: string[];
   data: string;

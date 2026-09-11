@@ -33,5 +33,16 @@ assert.equal((await read('/projects/knownwatch')).enabled,false);assert.equal((a
 await post('/projects/knownwatch/monitoring',{enabled:true});
 assert.equal((await read('/watches/'+known.id)).enabled,true);
 const [{count}]=await sql`select count(*)::int as count from identity_claims where project_handle='knownwatch'`;assert.equal(count,0);
+await post('/watches/'+known.id+'/monitoring',{enabled:false,actor:'telegram:42'});
+const flag=await post('/watches',{input:'@knownwatch',actor:'telegram:42',launch:true});
+assert.equal(flag.status,201);assert.equal(flag.body.data.launchFlag,true);assert.equal(flag.body.data.enabled,false);
+assert.equal(flag.body.data.lastAttemptAt,known.lastAttemptAt);
+assert.equal((await read('/projects/knownwatch')).enabled,false);
+const repeat=await post('/watches',{input:'@knownwatch',actor:'telegram:42',launch:true});
+assert.equal(repeat.body.data.revision,flag.body.data.revision);
+assert.equal((await post('/watches/'+known.id+'/launch',{enabled:false,actor:'grok'})).status,403);
+assert.equal((await post('/watches/'+known.id+'/launch',{enabled:true,actor:'telegram:42',tokenAddress:'injected'})).status,400);
+const unflag=await post('/watches/'+known.id+'/launch',{enabled:false,actor:'telegram:42'});
+assert.equal(unflag.body.data.launchFlag,false);assert.equal(unflag.body.data.enabled,false);
 console.log('Watch integration passed: auth, parsing, deduplication, preserved reports/schedules, pause propagation, no identity trust.');
 await sql.end();process.exit(0);

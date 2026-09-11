@@ -88,3 +88,6 @@ See [SIMPLE_WATCH.md](SIMPLE_WATCH.md): one X profile or website is sufficient t
 ## Provider budgets and stop controls (2026-09-11 UTC)
 US$0.50 X reservations/shared caches and persistent Telegram collection controls are deployed. Alchemy monitoring now has a 2,000-request daily guard, five-minute broad polling and persistent cursors; request counts are not compute-unit billing. The owner reported exhausted Alchemy quota: all collection is currently STOPPED, with chain OFF. Do not resume it during maintenance. /run resumes research with chain OFF. See COLLECTION_CONTROLS.md and deployments/2026-09-11-budget-controls.md.
 
+## Flagged launch preparation (2026-09-11 UTC)
+See [LAUNCH_PREPARATION.md](LAUNCH_PREPARATION.md). `/launch` flags an account/site for bounded additional docs research, role-labeled deployer/token candidates and exact Pons V2 event matching. A matching official CA declaration can prepare an untrusted identity draft for Telegram review. This advances deployer provenance and launch alerts; low-latency monitoring, other factory adapters, direct-deployer tracking, funding history, execution policies and live sniping remain unimplemented. Collection must remain stopped during maintenance.
+
