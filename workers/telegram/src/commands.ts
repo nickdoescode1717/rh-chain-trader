@@ -28,6 +28,7 @@ export function fillFromApprove(apiBody: unknown, proposalId: string) {
   const data = (body.data ?? {}) as Record<string, unknown>;
   const handoff = (body.signerHandoff ?? {}) as Record<string, unknown>;
   const position = (body.position ?? {}) as Record<string, unknown>;
+  const entry = position.entrySnapshot as Position["entrySnapshot"];
   const s = (v: unknown) => (v == null ? null : String(v));
   return formatPaperFillSuccess({
     proposalId,
@@ -39,6 +40,7 @@ export function fillFromApprove(apiBody: unknown, proposalId: string) {
     tokenCA: s(data.tokenCA) ?? s(handoff.tokenCA) ?? s(position.tokenCA),
     symbol: s(data.tokenSymbol) ?? s(data.symbol) ?? s(position.symbol),
     price: s(position.entryPrice),
+    entryCurrency: entry?.currency, quantity: entry?.quantity, observedAt: entry?.quote.observedAt,
     next: s(body.next) ?? "signer_handoff_stub",
     signed: body.signed === true,
     txSubmitted: body.txSubmitted === true,
@@ -63,6 +65,7 @@ export function fillFromPosition(pos: Position, proposalId: string) {
     tokenCA: s(pos.tokenCA) ?? s(pos.tokenAddress),
     symbol: s(pos.symbol),
     price: s(pos.entryPrice),
+    entryCurrency: pos.entrySnapshot?.currency, quantity: pos.entrySnapshot?.quantity, observedAt: pos.entrySnapshot?.quote.observedAt,
     next: "signer_handoff_stub",
     signed: false,
     txSubmitted: false,
@@ -74,7 +77,7 @@ export async function handleBalanceCommand(
   api: ApiClient,
   chatId: number | string,
   configuredChatId: string | undefined,
-  send: (chatId: number | string, text: string) => Promise<unknown>
+  send: (chatId: number | string, text: string, replyMarkup?: unknown) => Promise<unknown>
 ): Promise<void> {
   if (configuredChatId && String(chatId) !== String(configuredChatId)) {
     console.log(`[telegram] /balance ignored — chat ${chatId} != configured`);
@@ -83,14 +86,11 @@ export async function handleBalanceCommand(
   try {
     const bal = await api.getPaperBalance();
     const msg = formatBalance(bal);
-    await send(chatId, msg.text);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    await send(chatId, msg.text, msg.reply_markup);
+  } catch {
     await send(
       chatId,
-      "—— PAPER BALANCE ——\nUnavailable: " +
-        detail +
-        "\n(API /paper-balance). Watched alphas never included. PAPER ONLY."
+      "Balance unavailable right now. Try /balance again shortly."
     );
   }
 }
@@ -99,7 +99,7 @@ export async function handlePositionsCommand(
   api: ApiClient,
   chatId: number | string,
   configuredChatId: string | undefined,
-  send: (chatId: number | string, text: string) => Promise<unknown>
+  send: (chatId: number | string, text: string, replyMarkup?: unknown) => Promise<unknown>
 ): Promise<void> {
   if (configuredChatId && String(chatId) !== String(configuredChatId)) {
     console.log(`[telegram] /positions ignored — chat ${chatId} != configured`);
@@ -108,16 +108,15 @@ export async function handlePositionsCommand(
   try {
     const positions = await api.listPositions();
     if (positions == null) {
-      await send(chatId, "—— PAPER POSITIONS ——\nAPI returned 403/404 — redeploy api with GET /positions.");
+      await send(chatId, "Positions unavailable right now. Try /positions again shortly.");
       return;
     }
     const msg = formatPositionsList(positions);
-    await send(chatId, msg.text);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    await send(chatId, msg.text, msg.reply_markup);
+  } catch {
     await send(
       chatId,
-      "—— PAPER POSITIONS ——\nUnavailable: " + detail + "\nPAPER ONLY."
+      "Positions unavailable right now. Try /positions again shortly."
     );
   }
 }

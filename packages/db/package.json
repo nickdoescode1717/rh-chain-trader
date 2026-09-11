@@ -20,6 +20,7 @@
     "test": "echo 'no db unit tests'"
   },
   "dependencies": {
+    "@rh/core": "workspace:*",
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },

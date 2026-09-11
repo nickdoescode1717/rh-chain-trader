@@ -4,6 +4,9 @@
  */
 
 export type Proposal = {
+  projectHandle?: string | null;
+  identityGateEnabled?: boolean;
+  issuerIdentity?: IdentityVerdict;
   id: string;
   tokenCA?: string;
   tokenAddress?: string;
@@ -24,6 +27,10 @@ export type Proposal = {
 };
 
 export type Position = {
+  ledgerManaged?: boolean;
+  remainingQuantity?: string | null;
+  remainingCost?: string | null;
+  realizedPnl?: string;
   id: string;
   tokenCA?: string;
   tokenAddress?: string;
@@ -32,7 +39,17 @@ export type Position = {
   entryPrice?: string | null;
   currentPrice?: string | null;
   pnlPct?: number | null;
-  pnlAbs?: number | null;
+  pnlAbs?: number | string | null;
+  markSource?: string;
+  openedAt?: string | null;
+  valuationStatus?: string;
+  unrealizedPnl?: number | null;
+  pnlCurrency?: string | null;
+  currentValue?: number | null;
+  entrySnapshot?: { currency: "ETH" | "USD"; unitPrice: number; quantity: number; capturedAt: string; quote: { observedAt: string; source: string } } | null;
+  marketQuote?: { chainId: number; tokenAddress: string; priceUsd: number; priceEth: number; observedAt: string; source: string; url: string } | null;
+  marketError?: string | null;
+  markObservedAt?: string | null;
   status?: string;
   symbol?: string | null;
   proposalId?: string | null;
@@ -49,10 +66,15 @@ export type BuyWallet = {
 };
 
 export type PaperBalance = {
+  reservedSnipeEth?: string; availableCashEth?: string;
+  ledgerReconciled?: boolean;
+  realizedPnlEth?: string;
+  accounts?: { currency: string; cash: string; realizedPnl: string }[];
   paperOnly: true;
+  valuationComplete?: boolean;
   cashEth: string;
   equityEth: string;
-  positions: Array<{
+  positions: Array<Position & {
     id: string;
     tokenCA?: string;
     symbol?: string;
@@ -77,6 +99,27 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  listSnipes: () => Promise<SnipePlan[]>;
+  draftSnipe: (body: Record<string, unknown>) => Promise<SnipePlan>;
+  decideSnipe: (id: string, action: "arm" | "cancel", actor: string) => Promise<SnipePlan>;
+  getCollection: () => Promise<CollectionState>;
+  setCollection: (action: string, actor: string) => Promise<CollectionState>;
+  getXUsage: () => Promise<XUsage>;
+  listWatches: () => Promise<WatchTarget[]>;
+  getWatch: (id: string) => Promise<WatchTarget>;
+  addWatch: (input: string, actor: string, launch?: boolean) => Promise<WatchTarget>;
+  flagLaunch: (id: string, enabled: boolean, actor: string) => Promise<WatchTarget>;
+  monitorWatch: (id: string, enabled: boolean, actor: string) => Promise<WatchTarget>;
+  identityProject: (handle:string) => Promise<IdentityProject>;
+  identityClaim: (id:string) => Promise<{claim:IdentityClaim;verdict:IdentityVerdict}>;
+  draftIdentityClaim: (body:{projectHandle:string;tokenAddress:string;deployerAddress:string;creationTxHash:string;sourceUrl:string}) => Promise<IdentityClaim>;
+  reviewIdentity: (id:string,actor:string) => Promise<{review:{id:string;expiresAt:string};claim:IdentityClaim}>;
+  confirmIdentity: (id:string,actor:string) => Promise<{confirmed:boolean;verdict?:IdentityVerdict}>;
+  revokeIdentity: (id:string,actor:string) => Promise<{revoked:boolean;projectHandle:string}>;
+  previewPaperSell: (id: string, percent: number, actor: string) => Promise<SellPreview>;
+  confirmPaperSell: (id: string, actor: string) => Promise<{ fill: PaperFill; replayed: boolean }>;
+  cancelPaperSell: (id: string, actor: string) => Promise<{ cancelled: boolean }>;
+  listPaperFills: () => Promise<PaperFill[]>;
   baseUrl: string;
   listProposals: () => Promise<Proposal[]>;
   approveProposal: (id: string, actor: string) => Promise<unknown>;
@@ -84,7 +127,57 @@ export type ApiClient = {
   listPositions: () => Promise<Position[] | null>;
   sellPosition: (positionId: string, actor: string) => Promise<unknown>;
   getPaperBalance: () => Promise<PaperBalance>;
+  listResearchProjects: () => Promise<ResearchProject[]>;
+  getResearchProject: (handle: string) => Promise<ResearchProject>;
+  watchProject: (project: { handle: string; domain: string; category: string }) => Promise<ResearchProject>;
+  setProjectMonitoring: (handle: string, enabled: boolean) => Promise<ResearchProject>;
 };
+
+export type PaperExecution = { mode: "paper"; side: "buy" | "sell"; quantity: string; fee: string; cashDelta: string;
+  executionPrice: string; cost: string; realizedPnl: string; remainingQuantity?: string; remainingCost?: string };
+export type IdentityVerdict = { status:string; reasons?:string[]; sourceUrl?:string|null; checkedAt?:string|null; scope?:string };
+export type IdentityClaim = { id:string; projectHandle:string; domain:string; sourceUrl:string; tokenAddress:string; deployerAddress:string; creationTxHash:string;
+  reviewedAt:string|null; revokedAt:string|null; checkedAt:string|null; report:{source:{status:string;reason:string;excerpt:string;xLinked:boolean};chain:{status:string;reason:string;confirmations?:number;method?:string}}|null };
+export type IdentityProject = {project:{handle:string;domain:string;enabled:boolean};claims:IdentityClaim[];verdict:IdentityVerdict};
+export type PaperFill = { id: string; positionId: string; currency: string; side: "buy" | "sell";
+  execution: PaperExecution; createdAt: string; quote: { tokenAddress: string } };
+export type SellPreview = { id: string; positionId: string; tokenCA: string; percent: number; currency: string;
+  minimumNet: string; expiresAt: string; preview: PaperExecution };
+
+export type ResearchReport = {
+  researchedAt: string;
+  rating: { rating10: number | null; evidenceCoveragePct: number; supportedEvidencePoints: number;
+    checks: { id: string; label: string; status: string }[] };
+  subdomains: { discovered: number; errors: string[]; inspected: { host: string; status: number | null }[] };
+  launchReadiness: { blockers: string[] };
+  evidence: { id: string; url: string; kind: string; finding: string }[];
+  grok?: { status: string; analysis: { summary: string; concerns: string[]; missingEvidence: string[] } | null };
+};
+export type ResearchProject = {
+  watchManaged?: boolean;
+  id: string; handle: string; domain: string; category: string; enabled: boolean;
+  lastResearchedAt: string | null; lastError: string | null; report?: ResearchReport | null;
+};
+export type WatchTarget = {
+  launchFlag?: boolean; launchReport?: {
+    version: 1; observedAt: string; domain: string | null; pagesChecked: string[]; gaps: string[];
+    candidates: { address: string; role: "deployer" | "token" | "factory" | "mention"; sourceUrl: string; excerpt: string; observedAt: string; tokenDeclaration: boolean }[];
+    matches: { tokenAddress: string; deployerAddress: string; creationTxHash: string; factory: string; blockNumber: number; basis: "token" | "deployer"; claimId: string | null }[];
+  } | null;
+  id: string; inputKey: string; handle: string | null; domain: string | null; projectHandle: string | null;
+  enabled: boolean; status: string; lastAttemptAt: string | null; lastError: string | null; report: ResearchReport | null;
+  discovery: { observedAt: string; primaryHandle: string | null; domain: string | null;
+    accounts: { handle: string; sourceUrl: string; relation: string; description?: string }[];
+    domains: { domain: string; sourceUrl: string }[]; links: { url: string; kind: string; sourceUrl: string }[];
+    addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
+};
+export type SnipePlan = { id: string; status: string; reason: string; createdAt: string; armedAt: string | null; expiresAt: string | null;
+  tokenAddress: string | null; fillId: string | null; terms: { projectHandle: string; domain: string; deployerAddress: string;
+    spendEth: string; maxUnitPriceEth: string; minLiquidityUsd: number; hours: number; mode: "paper"; chainId: 4663 } };
+export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;
+  requests24h: number; blockedUntil: string | null; resetsAt: string; accounting: string };
+export type CollectionState = { paused: boolean; chainEnabled: boolean; rpcBlockedUntil: string | null;
+  rpcRequestsToday: number; rpcDailyRequestLimit: number; methods: {method:string;attempts:number}[] };
 
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
@@ -95,6 +188,8 @@ async function jsonFetch(
   init?: RequestInit
 ): Promise<{ ok: boolean; status: number; body: unknown }> {
   const res = await fetch(url, {
+    signal: AbortSignal.timeout(15_000),
+    redirect: "error",
     ...init,
     headers: {
       Accept: "application/json",
@@ -114,9 +209,58 @@ async function jsonFetch(
   return { ok: res.ok, status: res.status, body };
 }
 
-export function createApiClient(baseUrl: string): ApiClient {
+export function createApiClient(baseUrl: string, approvalToken = process.env.TELEGRAM_APPROVAL_TOKEN): ApiClient {
+  async function identity<T>(path:string,body?:unknown,decision=false):Promise<T> {
+    const r=await jsonFetch(joinUrl(baseUrl,`/identity/${path}`),body===undefined?undefined:{method:"POST",headers:decision?decisionHeaders():{},body:JSON.stringify(body)});
+    if (!r.ok) throw new Error(typeof (r.body as {error?:unknown})?.error === "string" ? (r.body as {error:string}).error : "identity_unavailable");
+    return (r.body as {data:T}).data;
+  }
+  async function paper<T>(path: string, body?: unknown): Promise<T> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/paper-sells/${path}`), body === undefined ? undefined : {
+      method: "POST", headers: decisionHeaders(), body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(typeof (r.body as { error?: unknown })?.error === "string" ? (r.body as { error: string }).error : "paper_request_failed");
+    return (r.body as { data: T }).data;
+  }
+  function decisionHeaders(): Record<string, string> {
+    if (!approvalToken || approvalToken.length < 32) throw new Error("Telegram approval credential is not configured on the worker.");
+    return { "x-telegram-approval-token": approvalToken };
+  }
+  async function research<T>(path: string, body?: unknown): Promise<T> {
+    const result = await jsonFetch(joinUrl(baseUrl, `/research/${path}`), body === undefined ? undefined : {
+      method: "POST", body: JSON.stringify(body),
+    });
+    if (!result.ok) throw new Error(`research_http_${result.status}`);
+    if (!result.body || typeof result.body !== "object" || !("data" in result.body)) throw new Error("invalid_research_response");
+    return (result.body as { data: T }).data;
+  }
   return {
     baseUrl,
+    getCollection: () => collection(),
+    setCollection: (action,actor) => collection({action,actor}),
+    listSnipes: () => snipe<SnipePlan[]>(""),
+    draftSnipe: body => snipe<SnipePlan>("",body),
+    decideSnipe: (id,action,actor) => snipe<SnipePlan>(`/${encodeURIComponent(id)}/${action}`,{actor}),
+    listWatches: () => research("watches"),
+    getXUsage: () => research("watches/usage"),
+    getWatch: id => research(`watches/${encodeURIComponent(id)}`),
+    addWatch: (input, actor, launch) => watchMutation("", { input, actor, ...(launch ? { launch: true } : {}) }),
+    flagLaunch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/launch`, { enabled, actor }),
+    monitorWatch: (id, enabled, actor) => watchMutation(`/${encodeURIComponent(id)}/monitoring`, { enabled, actor }),
+    identityProject: handle=>identity(`projects/${encodeURIComponent(handle)}`),
+    identityClaim: id=>identity(`claims/${encodeURIComponent(id)}`),
+    draftIdentityClaim: body=>identity("claims",body),
+    reviewIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/review`,{actor},true),
+    confirmIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/confirm`,{actor},true),
+    revokeIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/revoke`,{actor},true),
+    previewPaperSell: (id, percent, actor) => paper<SellPreview>(`${encodeURIComponent(id)}/preview`, { percent, actor }),
+    confirmPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/confirm`, { actor }),
+    cancelPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/cancel`, { actor }),
+    listPaperFills: () => paper<PaperFill[]>("history"),
+    listResearchProjects: () => research<ResearchProject[]>("projects"),
+    getResearchProject: (handle) => research<ResearchProject>(`projects/${encodeURIComponent(handle)}`),
+    watchProject: (project) => research<ResearchProject>("projects", project),
+    setProjectMonitoring: (handle, enabled) => research<ResearchProject>(`projects/${encodeURIComponent(handle)}/monitoring`, { enabled }),
 
     async listProposals() {
       const { ok, status, body } = await jsonFetch(
@@ -130,7 +274,7 @@ export function createApiClient(baseUrl: string): ApiClient {
     async approveProposal(id, actor) {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/purchase-proposals/${encodeURIComponent(id)}/approve`),
-        { method: "POST", body: JSON.stringify({ actor }) }
+        { method: "POST", headers: decisionHeaders(), body: JSON.stringify({ actor }) }
       );
       if (!ok) {
         throw new Error(`approveProposal failed: HTTP ${status} ${JSON.stringify(body)}`);
@@ -141,7 +285,7 @@ export function createApiClient(baseUrl: string): ApiClient {
     async rejectProposal(id, actor, reason) {
       const { ok, status, body } = await jsonFetch(
         joinUrl(baseUrl, `/purchase-proposals/${encodeURIComponent(id)}/reject`),
-        { method: "POST", body: JSON.stringify({ actor, reason: reason ?? undefined }) }
+        { method: "POST", headers: decisionHeaders(), body: JSON.stringify({ actor, reason: reason ?? undefined }) }
       );
       if (!ok) {
         throw new Error(`rejectProposal failed: HTTP ${status} ${JSON.stringify(body)}`);
@@ -177,4 +321,21 @@ export function createApiClient(baseUrl: string): ApiClient {
       return data as PaperBalance;
     },
   };
+  async function watchMutation(path: string, body: unknown): Promise<WatchTarget> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/research/watches${path}`), {
+      method: "POST", headers: decisionHeaders(), body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`research_http_${r.status}`);
+    return (r.body as { data: WatchTarget }).data;
+  }
+  async function collection(body?: unknown): Promise<CollectionState> {
+    const r = await jsonFetch(joinUrl(baseUrl,"/collection"),body === undefined ? undefined : {method:"POST",headers:decisionHeaders(),body:JSON.stringify(body)});
+    if(!r.ok)throw new Error("collection_unavailable");
+    return (r.body as {data:CollectionState}).data;
+  }
+  async function snipe<T>(path: string, body?: unknown): Promise<T> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/paper-snipes${path}`), body === undefined ? undefined : {method:"POST",headers:decisionHeaders(),body:JSON.stringify(body)});
+    if (!r.ok) throw new Error(String((r.body as {error?:string})?.error ?? "paper_snipe_unavailable"));
+    return (r.body as {data:T}).data;
+  }
 }

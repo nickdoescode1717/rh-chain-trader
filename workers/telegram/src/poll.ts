@@ -31,6 +31,7 @@ export type TelegramBot = {
     replyMarkup?: unknown
   ) => Promise<unknown>;
   answerCallbackQuery: (id: string, text: string) => Promise<unknown>;
+  editMessage: (chatId: number, messageId: number, text: string, replyMarkup?: unknown) => Promise<unknown>;
 };
 
 const TG_API = "https://api.telegram.org";
@@ -52,6 +53,8 @@ export function createTelegramBot(
       const url = `${TG_API}/bot${token}/${method}`;
       const res = await fetch(url, {
         method: "POST",
+        redirect: "error",
+        signal: AbortSignal.timeout(method === "getUpdates" ? 35_000 : 15_000),
         headers: { "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -85,9 +88,19 @@ export function createTelegramBot(
         chat_id: chatId,
         text,
         reply_markup: replyMarkup,
+        link_preview_options: { is_disabled: true },
       });
     },
 
+    async editMessage(chatId, messageId, text, replyMarkup) {
+      try {
+        return await bot.apiCall("editMessageText", { chat_id: chatId, message_id: messageId, text,
+          reply_markup: replyMarkup ?? { inline_keyboard: [] }, link_preview_options: { is_disabled: true } });
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("message is not modified")) return null;
+        throw err;
+      }
+    },
     async answerCallbackQuery(id, text) {
       return bot.apiCall("answerCallbackQuery", {
         callback_query_id: id,

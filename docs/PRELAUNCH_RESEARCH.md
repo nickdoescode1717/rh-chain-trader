@@ -2,6 +2,8 @@
 
 This feature connects a monitored X handle and public project domain to an evidence report. It advances the original platform/subdomain research and Grok-report requirements. Live token sniping and automatic exits remain unimplemented; see [PRODUCT_ALIGNMENT.md](PRODUCT_ALIGNMENT.md).
 
+**Interface update:** Telegram is now the primary interface and sole trade-approval channel. Use `/watch`, `/projects`, `/research`, `/pause` and `/resume` in the existing bot; see [the Telegram worker guide](../workers/telegram/README.md). The dashboard remains an optional operator tool. Grok continues backend analysis and the research handoff, but cannot approve/reject proposals. References below to its original primary/fallback arrangement describe the preceding implementation and do not grant decision authority.
+
 ## What runs
 
 - `research_projects` stores one latest snapshot per handle. Migration 0007 seeds the user-supplied `tradedotcv` example with `trade.cv`, classified as utility based on its stated product. This is a research lead, not verified ownership or a token endorsement.

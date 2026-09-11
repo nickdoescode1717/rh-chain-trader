@@ -31,6 +31,9 @@ services:
       API_PORT: 3001
       API_HOST: 0.0.0.0
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+      TELEGRAM_APPROVAL_TOKEN: ${TELEGRAM_APPROVAL_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
       CHAIN_ID: "4663"
       BLOCKSCOUT_BASE_URL: https://robinhoodchain.blockscout.com
       ENABLE_TRADING: "false"

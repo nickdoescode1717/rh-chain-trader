@@ -21,6 +21,15 @@ import {
   formatProposal,
 } from "./format.js";
 import { createDryRunBot, createTelegramBot } from "./poll.js";
+import { isAuthorizedUpdate } from "./access.js";
+import { handleResearchInput } from "./research.js";
+import { handlePortfolioCallback } from "./portfolio.js";
+import { handlePaperCallback } from "./paper-trading.js";
+import { handleIdentityInput } from "./identity.js";
+import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
+import { createWatchAlerts, handleWatchInput } from "./watches.js";
+import {handleCollectionInput} from "./collection.js";
+import {handleSnipeInput,createSnipeAlerts} from "./snipes.js";
 
 function env(name: string, fallback?: string): string | undefined {
   const v = process.env[name];
@@ -38,6 +47,7 @@ function isDryRun(): boolean {
 const API_BASE_URL = env("API_BASE_URL", "http://127.0.0.1:13001")!;
 const POLL_MS = Number(env("POLL_MS", "15000")) || 15000;
 const CHAT_ID = env("TELEGRAM_CHAT_ID");
+const OWNER_ID = env("TELEGRAM_OWNER_USER_ID");
 const TOKEN = env("TELEGRAM_BOT_TOKEN");
 const LARGE_MOVE_PCT = Number(env("LARGE_MOVE_PCT", "25")) || 25;
 const FILL_STATE_PATH =
@@ -47,8 +57,22 @@ const dry = isDryRun();
 const api = createApiClient(API_BASE_URL);
 const liveBot = dry ? null : createTelegramBot(TOKEN, false);
 const dryBot = dry ? createDryRunBot() : null;
+let pollResearch = async () => {};
+let pollWatches = async () => {};
+let pollSnipes = async () => {};
+if (liveBot && CHAT_ID) {
+  try {
+    pollSnipes = createSnipeAlerts(api,fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!+".snipes"),
+      async card=>{await liveBot.sendMessage(CHAT_ID,card.text,card.reply_markup);});
+    pollWatches = createWatchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")! + ".watches"), CHAT_ID,
+      async card => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
+    pollResearch = createResearchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!), CHAT_ID,
+      async (card) => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
+  } catch { console.warn("[telegram] research alert state unavailable; automatic research alerts disabled until restart. Commands still work."); }
+}
+let nextResearchPoll = 0;
 
-const notifiedProposals = new Set<string>();
+const notifiedProposals = new Map<string,string>();
 const alertedPositions = new Set<string>();
 const fillReceiptSent = new Set<string>();
 
@@ -111,12 +135,13 @@ async function pollProposals(): Promise<void> {
     return;
   }
   for (const p of proposals.filter((x) => x.status === "pending_nick")) {
-    if (notifiedProposals.has(p.id)) continue;
+    const fingerprint = JSON.stringify([p.status,p.issuerIdentity?.status,p.issuerIdentity?.reasons]);
+    if (notifiedProposals.get(p.id) === fingerprint) continue;
     const msg = formatProposal(p);
     console.log(`[telegram] new pending proposal ${p.id}`);
     try {
       await deliver(msg.text, msg.reply_markup);
-      notifiedProposals.add(p.id);
+      notifiedProposals.set(p.id,fingerprint);
     } catch (err) {
       console.warn("[telegram] deliver proposal failed:", err instanceof Error ? err.message : err);
     }
@@ -124,17 +149,10 @@ async function pollProposals(): Promise<void> {
 }
 
 /**
- * After TG restart / Approve via Grok: send paper fill for open positions
+ * After TG restart: send paper fill for open positions
  * whose proposalId has no recorded receipt yet. Paper only.
  */
-async function pollMissedFills(): Promise<void> {
-  let positions: Position[] | null;
-  try {
-    positions = await api.listPositions();
-  } catch (err) {
-    console.warn("[telegram] listPositions (fill catch-up) error:", err instanceof Error ? err.message : err);
-    return;
-  }
+async function pollMissedFills(positions: Position[] | null): Promise<void> {
   if (positions == null) return;
   for (const pos of positions) {
     if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
@@ -158,14 +176,7 @@ async function pollMissedFills(): Promise<void> {
   }
 }
 
-async function pollPositionsAlerts(): Promise<void> {
-  let positions;
-  try {
-    positions = await api.listPositions();
-  } catch (err) {
-    console.warn("[telegram] listPositions error:", err instanceof Error ? err.message : err);
-    return;
-  }
+async function pollPositionsAlerts(positions: Position[] | null): Promise<void> {
   if (positions == null) return;
   for (const pos of positions) {
     if (pos.status !== "simulated_open" && pos.status !== "alert_fired") continue;
@@ -196,12 +207,39 @@ async function processTgUpdates(): Promise<void> {
   }
   const updates = await liveBot.getUpdates(25);
   for (const u of updates) {
+    try {
+    // Gate both commands and callbacks before any backend access, including paper approvals.
+    if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
+      if (msg?.text) {
+        const snipe = await handleSnipeInput(api,msg.text,`telegram:${msg.from!.id}`);
+        if(snipe){await liveBot.sendMessage(msg.chat.id,snipe.text,snipe.reply_markup);continue;}
+      const control = await handleCollectionInput(api,msg.text,`telegram:${msg.from!.id}`);
+      if(control){await liveBot.sendMessage(msg.chat.id,control.text,control.reply_markup);continue;}
+      const watch = await handleWatchInput(api, msg.text, `telegram:${msg.from!.id}`);
+      if (watch) { await liveBot.sendMessage(msg.chat.id, watch.text, watch.reply_markup); continue; }
+      const card=await handleIdentityInput(api,msg.text,`telegram:${msg.from!.id}`);
+      if (card) {await liveBot.sendMessage(msg.chat.id,card.text,card.reply_markup);continue;}
+      if (/^\/proposals(?:@\w+)?\s*$/i.test(msg.text)) {
+        const pending=(await api.listProposals()).filter(p=>p.status==="pending_nick").slice(0,5);
+        if (!pending.length) await liveBot.sendMessage(msg.chat.id,"No pending paper proposals.");
+        for(const p of pending) {const c=formatProposal(p);await liveBot.sendMessage(msg.chat.id,c.text,c.reply_markup);}
+        continue;
+      }
+    }
+    if (msg?.text && /^\/history(?:@\w+)?\s*$/.test(msg.text)) {
+      const card = await handlePaperCallback(api, "paper:history:0", `telegram:${msg.from!.id}`);
+      await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue;
+    }
+    if (msg?.text) {
+      const card = await handleResearchInput(api, msg.text);
+      if (card) { await liveBot.sendMessage(msg.chat.id, card.text, card.reply_markup); continue; }
+    }
     if (msg?.text && isBalanceCommand(msg.text)) {
       console.log(`[telegram] /balance from ${msg.from?.id ?? "?"}`);
       try {
-        await handleBalanceCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
-          liveBot.sendMessage(id, text)
+        await handleBalanceCommand(api, msg.chat.id, CHAT_ID, (id, text, keyboard) =>
+          liveBot.sendMessage(id, text, keyboard)
         );
       } catch (err) {
         console.warn("[telegram] /balance failed:", err instanceof Error ? err.message : err);
@@ -211,8 +249,8 @@ async function processTgUpdates(): Promise<void> {
     if (msg?.text && isPositionsCommand(msg.text)) {
       console.log(`[telegram] /positions from ${msg.from?.id ?? "?"}`);
       try {
-        await handlePositionsCommand(api, msg.chat.id, CHAT_ID, (id, text) =>
-          liveBot.sendMessage(id, text)
+        await handlePositionsCommand(api, msg.chat.id, CHAT_ID, (id, text, keyboard) =>
+          liveBot.sendMessage(id, text, keyboard)
         );
       } catch (err) {
         console.warn("[telegram] /positions failed:", err instanceof Error ? err.message : err);
@@ -222,6 +260,48 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+      if(cq.data.startsWith("snipe:")){
+        await liveBot.answerCallbackQuery(cq.id,"Checking paper plan…");
+        const card=await handleSnipeInput(api,cq.data,`telegram:${cq.from!.id}`);
+        if(card)await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+        continue;
+      }
+      if(cq.data.startsWith("collection:")){
+      await liveBot.answerCallbackQuery(cq.id,"Updating collection controls…");
+      const card=await handleCollectionInput(api,cq.data,`telegram:${cq.from!.id}`);
+      if(card)await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+      continue;
+    }
+    if (cq.data.startsWith("watch:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating watch…");
+      const card = await handleWatchInput(api, cq.data, `telegram:${cq.from!.id}`);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
+    if (cq.data.startsWith("identity:")) {
+      await liveBot.answerCallbackQuery(cq.id,"Checking identity…");
+      const card=await handleIdentityInput(api,cq.data,`telegram:${cq.from!.id}`);
+      if(card) await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+      continue;
+    }
+    if (cq.data.startsWith("paper:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating paper trade…");
+      const card = await handlePaperCallback(api, cq.data, `telegram:${cq.from!.id}`);
+      await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
+    if (cq.data.startsWith("portfolio:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating portfolio…");
+      const card = await handlePortfolioCallback(api, cq.data);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
+    if (cq.data.startsWith("research:")) {
+      await liveBot.answerCallbackQuery(cq.id, "Updating research view…");
+      const card = await handleResearchInput(api, cq.data, true);
+      if (card) await liveBot.editMessage(cq.message!.chat.id, cq.message!.message_id, card.text, card.reply_markup);
+      continue;
+    }
     const userId = cq.from?.id ?? "unknown";
     console.log(`[telegram] callback from ${userId}: ${cq.data}`);
     const result = await handleCallback(api, cq.data, userId);
@@ -235,7 +315,7 @@ async function processTgUpdates(): Promise<void> {
       console.warn("[telegram] answerCallbackQuery failed:", err instanceof Error ? err.message : err);
     }
 
-    if (result.ok && result.action === "approve" && result.proposalId) {
+    if (result.ok && result.action === "approve" && result.proposalId && !fillReceiptSent.has(result.proposalId)) {
       try {
         const fill = fillFromApprove(result.apiBody, result.proposalId);
         await deliver(fill.text);
@@ -251,13 +331,23 @@ async function processTgUpdates(): Promise<void> {
         /* ignore */
       }
     }
+    } catch { console.warn("[telegram] update processing failed; continuing with remaining updates"); }
   }
 }
 
 async function tick(): Promise<void> {
   await pollProposals();
-  await pollMissedFills();
-  await pollPositionsAlerts();
+  try {
+    const positions = await api.listPositions();
+    await pollMissedFills(positions);
+    await pollPositionsAlerts(positions);
+  } catch { console.warn("[telegram] position poll unavailable; will retry"); }
+  if (Date.now() >= nextResearchPoll) {
+    nextResearchPoll = Date.now() + 60_000;
+    try { await pollResearch(); } catch { console.warn("[telegram] research poll unavailable; will retry"); }
+      try { await pollWatches(); } catch { console.warn("[telegram] watch poll unavailable; will retry"); }
+      try { await pollSnipes(); } catch { console.warn("[telegram] paper plan poll unavailable; will retry"); }
+  }
 }
 
 loadFillState();
@@ -285,11 +375,18 @@ if (dry) {
 
 await tick();
 
+// Schedule only after completion so slow API/Telegram requests never overlap the next tick.
+async function runPolling(): Promise<void> {
+  for (;;) {
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+    try { await tick(); } catch { console.warn("[telegram] poll failed; will retry"); }
+  }
+}
+void runPolling();
+
 if (dry) {
-  setInterval(() => { void tick(); }, POLL_MS);
   console.log("[telegram] dry-run loop active (API poll only; no Bot API)");
 } else {
-  setInterval(() => { void tick(); }, POLL_MS);
   const loop = async () => {
     for (;;) {
       try {

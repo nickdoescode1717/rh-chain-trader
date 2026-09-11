@@ -17,9 +17,10 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Meme ≠ utility** scoring frameworks.
 - **Paper only** until Nick flips policy: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`.
 - **No private keys** on research VPS, in git, in chat, or in the LLM. Signer is a **separate** service/interface.
-- Approval path: **Grok Bot primary**; **Telegram fallback** (same proposal payload; TG not required for MVP).
+- **Telegram is the primary user interface and the ONLY trade-approval channel** (Nick, 2026-09-09): concise research/options, watch controls, proposal decisions and position updates through the existing bot. Grok provides analysis and may draft proposals; it cannot approve/reject trades. Prioritize backend quality and efficiency. The web dashboard is optional administration; do not expand/polish it without a new request.
 - On-chain tokens ≠ Robinhood **brokerage** listings.
-- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; setup is explicitly deferred. The current implementation still targets the official X API. Add and validate a TwitterAPI.io adapter before activation; do not treat its credentials as an official X bearer token. Preserve Grok for analysis and the primary bot handoff. No direct X page scraping.
+- **Planned X data provider: TwitterAPI.io**, selected by Nick on 2026-09-09; the owner supplied a key and authorized a US$0.50/day ceiling; see docs/X_BUDGET.md. The older graph scanner targets the official X API; the one-input watch adapter now supports TwitterAPI.io profiles/recent posts, with a live profile lookup validated. Do not treat its credentials as an official X bearer token. Preserve Grok for analysis. No direct X page scraping.
+- **Copycat avoidance is critical.** Scores/names/tickers/subdomains/social address matches never verify issuer identity. Require an exact chain/address relationship to authenticated official sources and deployment/deployer evidence before future live eligibility. New paper buys now require the deployed owner-reviewed source and deployment identity gate; unverified or conflicting identities block entry. No project is auto-trusted; X authentication and additional factory adapters remain missing.
 - Untrusted web/X cannot authorize trades.
 
 ## 2. Architecture
@@ -40,6 +41,59 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 - **Chief of Staff** — intake, priority, morning briefs; ping CoS on commits when Nick is away
 
 ## 3. Current state (main, ~2026-09-09)
+
+**Conditional paper snipes (deployed 2026-09-11 UTC)**
+- Application `63aafd59755ca508f90a385ac95c4541c690039e` deployed; migration 0015; PAPER_SNIPER_ENABLED true on API/collector. `/snipe` drafts immutable plans, Telegram arm reserves capital, fresh exact mainnet identity and market gates can trigger one atomic paper entry. `/snipes` + alerts show results; `/balance` distinguishes reserved/available funds. See docs/PAPER_SNIPER.md and docs/deployments/2026-09-11-paper-sniper.md.
+- Targeted Pons V2 polling rotates armed deployers every ten seconds for ten minutes after arming, within existing RPC limits; DB evaluator every five seconds. No idle extra RPC. Collection stop, chain-off or research-only run cancels armed plans; no silent re-arm. Mainnet 4663 and testnet 46630 confirmed against Robinhood docs. Testnet scout addresses never establish mainnet identity.
+- 119 local tests, nine isolated PostgreSQL scripts and deployed Telegram handler checks passed. 0.88 ETH/three holdings, claims/settings/cursors preserved. ZERO plans armed/created; ALL collection STOPPED, chain OFF, no new X/RPC calls observed. Do not resume automatically. No live signer/DEX execution or automated exits; actual launch/provider trial remains outstanding.
+- Latest backup `/root/rh-deploy-backups/20260911T190408Z-snipe`; marker snipe-current. Paper snipes depend on migration 0015 even for collection controls and ledger reservation reads. Preserve additive schema during rollback; do not restore older accounting over new fills.
+
+**Flagged launch DD (deployed 2026-09-11 UTC)**
+- Application `13f09af576dc18aa950f97a508d05d2a87189462` deployed. `/launch` and watch-card flags add bounded docs DD, role-labeled deployer/token candidates, exact Pons V2 event matching and untrusted identity drafts for Telegram review. See docs/LAUNCH_PREPARATION.md and docs/deployments/2026-09-11-launch-preparation.md.
+- 116 local tests and six isolated PostgreSQL scripts passed; deployed Telegram handler checks passed. 0.88 ETH / three legacy positions, project states, claims and cursors preserved. No new X/RPC requests during verification.
+- ALL collection remains STOPPED, chain OFF. No watches were auto-created or flagged. Do not resume during maintenance. This is preparation only: no automatic trades, low-latency sniper, new factory/direct-deployer adapter or funding-history tracing.
+- Latest backup `/root/rh-deploy-backups/20260911T183718Z-launch`; helper scripts under Desktop Files/Bot Operations are rh-launch-build-test.py, rh-launch-cutover.py and rh-launch-verify.py. They target the exact application hash; adapt and revalidate for future releases.
+
+**X budget and collection controls (deployed 2026-09-11 UTC)**
+- Application f512a081 deployed with all collection STOPPED and chain monitoring OFF following exhausted Alchemy quota. Do not resume automatically. /stop, /run (research only), /chainon, /chainoff and /status are Telegram owner controls. Migrations 0012/0013, 109 local tests and five isolated integration scripts passed. Live checks showed 0 new RPC/X calls and preserved both cursors plus 0.88 ETH / 3 holdings. See docs/deployments/2026-09-11-budget-controls.md and docs/COLLECTION_CONTROLS.md.
+- Migration 0012 reserves paid calls under a US$0.50 rolling-24-hour ceiling, with shared daily profile/hourly primary/six-hour related timeline caches and persistent failure backoff. Telegram /usage reports conservative reservations, not provider billing. Key is installed server-side; never print it. See docs/X_BUDGET.md.
+
+
+**One-input watch intake (deployed 2026-09-10)**
+- Application a93f960 deployed; 107 local tests and isolated API/collector database checks passed. Live public discovery found tradedotcv from trade.cv, and 0.88 ETH / 3 holdings were preserved. See docs/deployments/2026-09-10-simple-watch.md.
+- See docs/SIMPLE_WATCH.md. Migration 0011, durable /watch account-or-website intake, automatic bounded linked-account/website discovery and Telegram updates. Website-only research works without X. TwitterAPI.io watch enrichment is implemented but remains disabled pending setup; older X graph scanner unchanged.
+- Never overwrite existing project mappings or grant identity trust from discovery. Preserve pause and hourly scheduling. Desktop helper scripts/logs are now in C:/Users/ncrim/Desktop/Desktop Files/Bot Operations; repository and SSH paths are unchanged.
+
+**Identity gate (deployed 2026-09-10 UTC)**
+- See `docs/IDENTITY_GATE.md`. Migration 0010, API/collector `IDENTITY_GATE_ENABLED`, immutable identity drafts and separate Telegram owner source reviews. Current verification covers explicit website token/chain declarations and direct/Pons V2 canonical deployment evidence, with stale/error/conflict rejection.
+- New buys are gated inside durable settlement; scores, names and untrusted draft fields cannot override. Existing holdings/sells remain available. Do not automatically trust any existing project or fabricate source approvals. X authentication and other factory adapters remain missing.
+- Application `87e5cb4c0cc8a08855dc8647bd5858dce9fe58ae` deployed with gate enabled on API/collector. 98 local tests, isolated PostgreSQL identity/approval integration and one real-chain Pons creation probe passed. Live read-only checks verified owner auth, unverified proposal buttons and unchanged 0.88 ETH/3 holdings. `tradedotcv` remains paused and untrusted. See `docs/deployments/2026-09-10-identity-gate.md`.
+
+**Durable paper ledger (deployed 2026-09-10 UTC)**
+- See `docs/PAPER_LEDGER.md`. Migration 0009 and `PAPER_LEDGER_ENABLED` add atomic, fixed-point paper buy/sell settlement, persistent currency cash and realized P&L, immutable fills, reconciliation, and restart-safe idempotency.
+- Telegram `/positions` previews 25/50/100% of remaining tokens; sell confirmations expire after 90 seconds and recheck price/position version. `/history` lists fills. All trade decisions still require the Telegram service credential and exact owner actor.
+- Legacy holdings keep known costs and unknown quantities; missing entry snapshots block modeled sells. Never fabricate old entries or reset balances. Do not revert to the old memory-accounting app after ledger fills.
+- Fees/slippage are explicitly modeled; gas, token taxes, liquidity impact and actual on-chain fillability are not simulated. No live adapter or automatic exit policy is implemented.
+- Application `1ca3f5244e66ac3c7b9c7962fb489bbac5d93146` deployed with ledger enabled. 70 relevant local tests and isolated PostgreSQL concurrency/rollback/restart tests passed. Read-only production verification preserved 3 old holdings, 0.88 ETH cash and 0 realized P&L. No production test fills. See `docs/deployments/2026-09-10-paper-ledger.md`.
+
+**Market pricing and paper entry snapshots (deployed 2026-09-10 UTC)**
+- Revision `4fea48846e1e950ab3850dc63132dc95bb5c2572` deployed. `MARKET_PRICING_ENABLED=true` on API/collector. Migration 0008 adds quote cache and durable entry/mark metadata. See `docs/MARKET_PRICING.md` for selection rules and limitations.
+- Exact-token Robinhood/native-ETH pools only; no ticker matching or arbitrary `priceNative`→ETH assumption. Fresh quotes verified for CRUMBS and STONKBROKER. Provider receipt time is recorded; underlying trade/price timestamp is unavailable.
+- Newly approved paper positions require an eligible quote <=90 seconds old and atomically save the immutable entry snapshot and estimated quantity. Quote observations >180 seconds old or with collection errors produce unavailable P&L. Legacy missing entries remain unknown.
+- 84 local tests and isolated PostgreSQL concurrency/rollback/hydration/staleness tests passed. No production test trade. Full budget/exposure ledger and live execution remain unimplemented.
+
+**Telegram portfolio improvements (deployed 2026-09-09)**
+- Application revision `3722eae6c2942ad1d8e9df4969cc2bd7cccc9b15` deployed to API and Telegram. Positions use five-item pages, detail/refresh/balance buttons, shortened addresses in summaries and full addresses in details. Research/portfolio navigation edits the current message.
+- Token display labels recover through exact chain/address token joins or the original proposal scores after restart. Labels are not issuer verification. Verified CRUMBS, STONKBROKER and PAPERDEMO labels against the deployed database.
+- P&L displays recorded manual-mark estimates in the cost currency, with placeholder/missing price states explicitly unavailable. Balance labels incomplete equity and excludes non-ETH holdings from ETH P&L. Receipts omit internal plumbing and alerts no longer offer an unimplemented sell action.
+- 43 relevant API/Telegram tests passed; both builds and live read-only portfolio rendering passed. See `docs/deployments/2026-09-09-portfolio.md`.
+- Priority remaining: trustworthy entry snapshots, timestamped/current price source and quote currency, durable mark provenance, and accounting/execution reliability. Existing CRUMBS/STONKBROKER entries have no price; do not fabricate historical fills. Live pricing, automatic buys and sells remain absent.
+
+**Telegram interface branch (2026-09-09)**
+- Added `/help`, `/projects`, `/watch`, `/research`, `/pause`, `/resume` and inline project controls in the existing bot. A monitoring API updates project and X enablement together without clearing reports or resetting the paid research schedule.
+- Automatic research cards notify on the first report and changed rating/coverage/checks, subdomain status, mentioned address set or launch blockers. Timestamp-only/prose-only changes are suppressed; restart deduplication is stored on a Compose volume. Single Telegram worker replica; delivery can duplicate after an uncertain send/crash before state persistence.
+- Commands and callbacks require the configured chat and owner. Private chats infer the owner; groups require `TELEGRAM_OWNER_USER_ID`. Polls do not overlap, position data is fetched once per tick, research detail reads are capped at five per minute. Deployed to the existing Hetzner bot on 2026-09-09; see `docs/deployments/2026-09-09-telegram.md` for verified behavior and remaining acceptance gaps.
+- Approve/reject APIs require the owner actor plus `TELEGRAM_APPROVAL_TOKEN` (separate service credential shared only by API and Telegram; no collector/Grok access). Configured remotely during coordinated deployment; missing configuration blocks decisions. Live API checks reject unauthenticated and Grok actors. Grok research/drafting remains.
 
 **Prelaunch project research branch (2026-09-09)**
 - Migration 0007 registers Nick's `tradedotcv` example. Opt-in public homepage/passive subdomain collector, ten-category evidence rubric, optional xAI Grok narrative, `/research/projects` APIs, Grok research handoff and Project research dashboard are implemented; see `docs/PRELAUNCH_RESEARCH.md`.
@@ -77,7 +131,7 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 3. Public docs/repos/subdomains + evidence-backed meme/utility scoring and reports.
 4. Policy-controlled paper entry/exit, durable limits, accounting and restart/failure validation.
 5. Isolated live signer/adapters after the user's spend limits, mode and exit policy are specified.
-6. Keep Grok primary and Telegram fallback interfaces compatible with the resulting reports/policy.
+6. Make the existing Telegram bot the primary interface and sole approval channel; preserve Grok backend analysis and research/draft handoffs.
 
 ### Next / tools
 - Opt-in live Telegram long-poll on VPS (`TELEGRAM_DRY_RUN=false` + bot token in secret store only); keep paper-only — no live sells
@@ -132,3 +186,7 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ---
 
 *Maintained by Coder for multi-agent continuity. Update when state or rules change.*
+
+
+
+

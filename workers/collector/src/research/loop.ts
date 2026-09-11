@@ -1,5 +1,6 @@
+import {waitForCollection} from "../collection-control.js";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
-import { createDb, researchProjects, socialSignals, socialAccounts } from "@rh/db";
+import { createDb, researchProjects, socialSignals, socialAccounts, watchTargets } from "@rh/db";
 import { inspectProject } from "./inspect.js";
 import { enrichWithGrok } from "./grok.js";
 export async function runProjectResearchLoop(): Promise<void> {
@@ -8,9 +9,11 @@ export async function runProjectResearchLoop(): Promise<void> {
   }
   const db = createDb(process.env.DATABASE_URL);
   for (;;) {
+    await waitForCollection(false);
     try {
       // One project at a time; at most hourly per project, including failed attempts.
       const [project] = await db.select().from(researchProjects).where(and(eq(researchProjects.enabled, true),
+        sql`not exists (select 1 from ${watchTargets} where ${watchTargets.projectHandle} = ${researchProjects.handle} and ${watchTargets.enabled} = true)`,
         sql`(${researchProjects.lastResearchedAt} IS NULL OR ${researchProjects.lastResearchedAt} < now() - interval '1 hour')`))
         .orderBy(sql`${researchProjects.lastResearchedAt} ASC NULLS FIRST`, asc(researchProjects.createdAt)).limit(1);
       if (project) {
@@ -40,3 +43,4 @@ export async function runProjectResearchLoop(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 60_000));
   }
 }
+

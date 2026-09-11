@@ -59,19 +59,22 @@ export async function handleCallback(
     }
 
     if (parsed.action === "sell") {
-      const apiBody = await api.sellPosition(parsed.positionId, actor);
       return {
-        ok: true,
+        ok: false,
         action: "sell",
         positionId: parsed.positionId,
-        detail: `Paper sell proposed for position ${parsed.positionId} (no live sell)`,
-        apiBody,
+        detail: "Open /positions to preview and confirm a paper sell.",
       };
     }
 
     return { ok: false, action: "unknown", detail: "unreachable" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (/identity_(?:unverified|conflicting|requires)/.test(msg)) return {ok:false,action:parsed.action,detail:"Buy blocked by the identity gate. Open /identity @handle or /proposals for the current evidence."};
+    if (/insufficient_paper_cash/.test(msg)) return { ok: false, action: parsed.action, detail: "Insufficient paper cash. Check /balance. No fill recorded." };
+    if (/fresh_entry_quote_required|entry_quote_storage_unavailable/.test(msg)) {
+      return { ok: false, action: parsed.action, detail: "A fresh eligible price is needed. Try Approve again in a minute. No position opened." };
+    }
     return { ok: false, action: parsed.action, detail: msg };
   }
 }

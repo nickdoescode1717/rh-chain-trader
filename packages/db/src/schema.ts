@@ -142,6 +142,7 @@ export const auditLog = pgTable("audit_log", {
  * See docs/PURCHASE_PROPOSALS.md
  */
 export const purchaseProposals = pgTable("purchase_proposals", {
+  projectHandle: text("project_handle"),
   id: uuid("id").defaultRandom().primaryKey(),
   tokenId: uuid("token_id").references(() => tokens.id),
   tokenAddress: text("token_address"),
@@ -182,6 +183,14 @@ export const positions = pgTable("positions", {
   size: text("size"), // eth:0.05 | tokens:…
   entryPrice: text("entry_price"),
   currentPrice: text("current_price"), // nullable until oracle
+  entrySnapshot: jsonb("entry_snapshot").$type<Record<string, unknown>>(),
+  ledgerManaged: boolean("ledger_managed").notNull().default(false),
+  remainingQuantity: numeric("remaining_quantity", { precision: 78, scale: 18 }),
+  remainingCost: numeric("remaining_cost", { precision: 78, scale: 18 }),
+  realizedPnl: numeric("realized_pnl", { precision: 78, scale: 18 }).notNull().default("0"),
+  positionVersion: integer("position_version").notNull().default(0),
+  markSource: text("mark_source"),
+  markObservedAt: timestamp("mark_observed_at", { withTimezone: true }),
   pnlAbs: text("pnl_abs"),
   pnlPct: real("pnl_pct"),
   thresholds: jsonb("thresholds").$type<Record<string, unknown>>(),
@@ -203,6 +212,44 @@ export type Score = typeof scores.$inferSelect;
 export type Evidence = typeof evidence.$inferSelect;
 export type PurchaseProposal = typeof purchaseProposals.$inferSelect;
 export type Position = typeof positions.$inferSelect;
+
+export const marketQuotes = pgTable("market_quotes", {
+  tokenAddress: text("token_address").primaryKey(),
+  chainId: integer("chain_id").notNull().default(4663),
+  quote: jsonb("quote").$type<Record<string, unknown>>(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }).notNull(),
+  lastError: text("last_error"),
+});
+
+export const paperAccounts = pgTable("paper_accounts", {
+  currency: text("currency").primaryKey(),
+  cash: numeric("cash", { precision: 78, scale: 18 }).notNull(),
+  realizedPnl: numeric("realized_pnl", { precision: 78, scale: 18 }).notNull().default("0"),
+});
+export const paperLedger = pgTable("paper_ledger", {
+  id: uuid("id").defaultRandom().primaryKey(), eventKey: text("event_key").notNull().unique(),
+  currency: text("currency").notNull().references(() => paperAccounts.currency),
+  positionId: uuid("position_id").references(() => positions.id),
+  kind: text("kind").notNull(), delta: numeric("delta", { precision: 78, scale: 18 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const paperFills = pgTable("paper_fills", {
+  id: uuid("id").defaultRandom().primaryKey(), eventKey: text("event_key").notNull().unique(),
+  positionId: uuid("position_id").notNull().references(() => positions.id),
+  currency: text("currency").notNull(), side: text("side").notNull(),
+  execution: jsonb("execution").$type<Record<string, unknown>>().notNull(),
+  quote: jsonb("quote").$type<Record<string, unknown>>().notNull(), actor: text("actor").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const paperSellIntents = pgTable("paper_sell_intents", {
+  id: uuid("id").defaultRandom().primaryKey(), positionId: uuid("position_id").notNull().references(() => positions.id),
+  positionVersion: integer("position_version").notNull(), percent: integer("percent").notNull(),
+  actor: text("actor").notNull(), currency: text("currency").notNull(),
+  minimumNet: numeric("minimum_net", { precision: 78, scale: 18 }).notNull(),
+  preview: jsonb("preview").$type<Record<string, unknown>>().notNull(),
+  status: text("status").notNull().default("pending"), fillId: uuid("fill_id").references(() => paperFills.id),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
 
 /** X discovery is evidence collection only; these records never authorize orders. */
 export const socialAccounts = pgTable("social_accounts", {
@@ -243,4 +290,61 @@ export const researchProjects = pgTable("research_projects", {
   lastResearchedAt: timestamp("last_researched_at", { withTimezone: true }),
   lastError: text("last_error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const identityClaims = pgTable("identity_claims", {
+  id: uuid("id").defaultRandom().primaryKey(), projectHandle: text("project_handle").notNull().references(() => researchProjects.handle),
+  domain: text("domain").notNull(), sourceUrl: text("source_url").notNull(), tokenAddress: text("token_address").notNull(),
+  deployerAddress: text("deployer_address").notNull(), creationTxHash: text("creation_tx_hash").notNull(),
+  report: jsonb("report").$type<Record<string, unknown>>(), checkedAt: timestamp("checked_at", { withTimezone: true }),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }), reviewedBy: text("reviewed_by"), reviewedSourceHash: text("reviewed_source_hash"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const identityReviews = pgTable("identity_reviews", {
+  id: uuid("id").defaultRandom().primaryKey(), claimId: uuid("claim_id").notNull().references(() => identityClaims.id),
+  sourceHash: text("source_hash").notNull(), actor: text("actor").notNull(), status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+/** Durable one-input research intake. Discoveries never grant issuer trust. */
+export const watchTargets = pgTable("watch_targets", {
+  launchFlag: boolean("launch_flag").notNull().default(false),
+  launchReport: jsonb("launch_report").$type<import("@rh/core").LaunchReport>(),
+  id: uuid("id").defaultRandom().primaryKey(), inputKey: text("input_key").notNull().unique(),
+  handle: text("handle"), domain: text("domain"),
+  projectHandle: text("project_handle").references(() => researchProjects.handle),
+  enabled: boolean("enabled").notNull().default(true), revision: integer("revision").notNull().default(0),
+  status: text("status").notNull().default("queued"),
+  discovery: jsonb("discovery").$type<Record<string, unknown>>(), report: jsonb("report").$type<Record<string, unknown>>(),
+  lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }), lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const launchDeployments = pgTable("launch_deployments", {
+  id: uuid("id").defaultRandom().primaryKey(), chainId: integer("chain_id").notNull(),
+  tokenAddress: text("token_address").notNull(), deployerAddress: text("deployer_address").notNull(),
+  creationTxHash: text("creation_tx_hash").notNull(), factory: text("factory").notNull(),
+  blockNumber: integer("block_number").notNull(), blockHash: text("block_hash").notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [uniqueIndex("launch_deployments_chain_token_tx").on(t.chainId, t.tokenAddress, t.creationTxHash)]);
+export const xRequestBudget = pgTable("x_request_budget", {
+  id: uuid("id").defaultRandom().primaryKey(), cacheKey: text("cache_key").notNull(),
+  reservedCredits: integer("reserved_credits").notNull(), state: text("state").notNull().default("reserved"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const xResponseCache = pgTable("x_response_cache", {
+  cacheKey: text("cache_key").primaryKey(), payload: jsonb("payload"),
+  observedAt: timestamp("observed_at", { withTimezone: true }), leaseId: uuid("lease_id").references(() => xRequestBudget.id),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+});
+export const xProviderState = pgTable("x_provider_state", {
+  id: integer("id").primaryKey(), blockedUntil: timestamp("blocked_until", { withTimezone: true }),
+});
+export const paperSnipes = pgTable("paper_snipes", {
+  monitorAttemptAt: timestamp("monitor_attempt_at", { withTimezone: true }), monitorBlock: integer("monitor_block"),
+  id: uuid("id").defaultRandom().primaryKey(), terms: jsonb("terms").$type<import("@rh/core").SnipeTerms>().notNull(),
+  createdBy: text("created_by").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status").notNull().default("draft"), armedAt: timestamp("armed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }), checkedAt: timestamp("checked_at", { withTimezone: true }),
+  reason: text("reason").notNull().default("review_required"), tokenAddress: text("token_address"),
+  proposalId: uuid("proposal_id").references(() => purchaseProposals.id), fillId: uuid("fill_id").references(() => paperFills.id),
 });
