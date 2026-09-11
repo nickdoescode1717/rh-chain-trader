@@ -9,6 +9,7 @@ import { runMarketLoop } from "./market.js";
 import { runIdentityLoop } from "./identity.js";
 import { runWatchLoop } from "./research/watch-loop.js";
 import { runLaunchPreparationLoop } from "./launch-preparation.js";
+import { runSnipeMonitor } from "./snipe-monitor.js";
 
 // Paper / research only — never honor trading or tx submission flags.
 if (
@@ -26,5 +27,5 @@ const rpc = createRpcClient();
 
 // Factory launch ingest (corroboration) + watched-wallet Transfer poller (empty-ready).
 async function supervise(task: () => Promise<void>, rpc = false) { for (;;) { await waitForCollection(rpc); try { await task(); return; } catch { await new Promise(r => setTimeout(r, 30000)); } } }
-await Promise.all([supervise(()=>runListenerLoop(rpc),true),supervise(()=>runWalletWatcherLoop(rpc),true),supervise(runSocialLoop),supervise(runProjectResearchLoop),supervise(()=>runMarketLoop(rpc),true),supervise(runIdentityLoop,true),supervise(runWatchLoop),supervise(runLaunchPreparationLoop)]);
+await Promise.all([supervise(()=>runListenerLoop(rpc),true),supervise(()=>runWalletWatcherLoop(rpc),true),supervise(runSocialLoop),supervise(runProjectResearchLoop),supervise(()=>runMarketLoop(rpc),true),supervise(runIdentityLoop,true),supervise(runWatchLoop),supervise(runLaunchPreparationLoop),supervise(()=>runSnipeMonitor(rpc),true)]);
 

@@ -101,6 +101,7 @@ export function formatLaunch(w: WatchTarget): BotCard {
   return { text: lines.join("\n").slice(0, 3900), reply_markup: { inline_keyboard: [
     [button("Refresh preparation", `watch:launch:${w.id}`), button("Watch", `watch:show:${w.id}`)],
     ...(w.projectHandle ? [[button("Token identity / review", `identity:list:${w.projectHandle}`)]] : []),
+    ...(w.projectHandle ? [[button("Prepare paper snipe", `snipe:help:${w.projectHandle}`)]] : []),
     [button(w.launchFlag ? "Disable launch DD" : "Enable launch DD", `watch:${w.launchFlag ? "unflag" : "flag"}:${w.id}`)],
   ] } };
 }

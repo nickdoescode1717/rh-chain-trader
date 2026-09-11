@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { auditLog, marketQuotes, paperAccounts, paperFills, paperLedger, paperSellIntents, positions, purchaseProposals, tokens, type Db } from "@rh/db";
+import { auditLog, marketQuotes, paperAccounts, paperFills, paperLedger, paperSellIntents, paperSnipes, positions, purchaseProposals, tokens, type Db } from "@rh/db";
 import { captureEntry, decimal, PAPER_MODEL, quoteUsable, simulateBuy, simulateSell, units, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "./db.js";
 import { dbRowToMem, toPositionPayload } from "./paper-positions-mem.js";
@@ -48,7 +48,14 @@ async function currentQuote(tx: Tx, address: string | null) {
   return q!;
 }
 export async function ledgerBuy(id: string, actor: string) {
-  return withLedger(async (tx) => {
+  return withLedger(tx => settleLedgerBuy(tx, id, actor));
+}
+export async function reservedSnipeEth(tx: Tx, excluding?: string) {
+  const plans = await tx.select().from(paperSnipes).where(and(eq(paperSnipes.status, "armed"), sql`${paperSnipes.expiresAt} > now()`));
+  return plans.filter(p => p.id !== excluding).reduce((sum, p) => sum + units(p.terms.spendEth), 0n);
+}
+/** Internal atomic settlement primitive. Automatic callers must validate the immutable plan in this same transaction. */
+export async function settleLedgerBuy(tx: Tx, id: string, actor: string, snipeId?: string) {
     const [proposal] = await tx.select().from(purchaseProposals).where(eq(purchaseProposals.id, id)).for("update");
     if (!proposal) throw new LedgerError("not_found", 404);
     const [prior] = await tx.select().from(paperFills).where(eq(paperFills.eventKey, `buy:${id}`));
@@ -56,12 +63,13 @@ export async function ledgerBuy(id: string, actor: string) {
       const [position] = await tx.select().from(positions).where(eq(positions.id, prior.positionId));
       return { proposal, position, fill: prior, replayed: true };
     }
-    if (proposal.status !== "pending_nick" || (proposal.expiresAt && proposal.expiresAt.getTime() <= Date.now())) throw new LedgerError("not_pending_or_expired");
+    if (proposal.status !== (snipeId ? "pending_snipe" : "pending_nick") || (proposal.expiresAt && proposal.expiresAt.getTime() <= Date.now())) throw new LedgerError("not_pending_or_expired");
     const identity = identityEnabled() ? await proposalIdentity(tx, proposal) : null;
     if (identity && identity.status !== "verified") throw new LedgerError(`identity_${identity.status}:${identity.reasons.join(",")}`);
     const { currency, cost } = currencySize(proposal.size), q = await currentQuote(tx, proposal.tokenAddress);
     const [account] = await tx.select().from(paperAccounts).where(eq(paperAccounts.currency, currency));
-    if (units(account.cash) < units(cost)) throw new LedgerError("insufficient_paper_cash");
+    const reserved = currency === "ETH" ? await reservedSnipeEth(tx, snipeId) : 0n;
+    if (units(account.cash) - reserved < units(cost)) throw new LedgerError("insufficient_paper_cash");
     const model = simulateBuy(cost, String(currency === "ETH" ? q.priceEth : q.priceUsd));
     const snapshot = captureEntry(q, proposal.tokenAddress!, proposal.size);
     snapshot.identity = identity;
@@ -78,7 +86,6 @@ export async function ledgerBuy(id: string, actor: string) {
     const [approved] = await tx.update(purchaseProposals).set({ status: "approved", approvedAt: new Date(), note: "PAPER_LEDGER_SETTLED" }).where(eq(purchaseProposals.id, id)).returning();
     await tx.insert(auditLog).values({ action: "paper_buy_settled", actor, detail: { proposalId: id, positionId: position.id, fillId: fill.id, mode: "paper" } });
     return { proposal: approved, position, fill, replayed: false };
-  });
 }
 export async function previewSell(id: string, percent: number, actor: string) {
   if (![25, 50, 100].includes(percent)) throw new LedgerError("invalid_sell_percent", 400);
@@ -190,7 +197,9 @@ export async function ledgerBook() {
     const eth = open.filter(p => p.pnlCurrency === "ETH");
     const cash = accounts.find(a => a.currency === "ETH")!;
     const positionsEth = eth.reduce((sum, p) => sum + (p.currentValue ?? Number(p.remainingCost ?? 0)), 0);
+    const reserved = await reservedSnipeEth(tx);
     return { holdings, balance: { paperOnly: true, ledgerReconciled: true, model: PAPER_MODEL, accounts,
+      reservedSnipeEth: decimal(reserved), availableCashEth: decimal(units(cash.cash) - reserved),
       cashEth: cash.cash, equityEth: String(Number(cash.cash) + positionsEth), realizedPnlEth: cash.realizedPnl,
       valuationComplete: open.length === eth.length && eth.every(p => p.currentValue != null),
       positions: open.map(p => ({ ...p, mark: p.currentPrice })), buyWallets: [],

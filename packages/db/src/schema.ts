@@ -339,3 +339,12 @@ export const xResponseCache = pgTable("x_response_cache", {
 export const xProviderState = pgTable("x_provider_state", {
   id: integer("id").primaryKey(), blockedUntil: timestamp("blocked_until", { withTimezone: true }),
 });
+export const paperSnipes = pgTable("paper_snipes", {
+  monitorAttemptAt: timestamp("monitor_attempt_at", { withTimezone: true }), monitorBlock: integer("monitor_block"),
+  id: uuid("id").defaultRandom().primaryKey(), terms: jsonb("terms").$type<import("@rh/core").SnipeTerms>().notNull(),
+  createdBy: text("created_by").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status").notNull().default("draft"), armedAt: timestamp("armed_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }), checkedAt: timestamp("checked_at", { withTimezone: true }),
+  reason: text("reason").notNull().default("review_required"), tokenAddress: text("token_address"),
+  proposalId: uuid("proposal_id").references(() => purchaseProposals.id), fillId: uuid("fill_id").references(() => paperFills.id),
+});

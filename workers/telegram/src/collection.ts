@@ -5,6 +5,7 @@ export function formatCollection(s:CollectionState):BotCard {
     `Alchemy / chain monitoring: ${!s.paused && s.chainEnabled ? "enabled" : "OFF"}`,
     `RPC attempts today (UTC): ${s.rpcRequestsToday}/${s.rpcDailyRequestLimit}`,
     "Request counts are not Alchemy compute units or billing totals.",
+    "Stopping or disabling chain collection cancels armed paper snipe plans. Resume does not re-arm them.",
     ...s.methods.slice(0,5).map(m=>`${m.method}: ${m.attempts}`),
     ...(s.rpcBlockedUntil && Date.parse(s.rpcBlockedUntil)>Date.now() ? [`Provider cooldown until ${s.rpcBlockedUntil}`] : []),
     "\n/stop — pause all collection\n/run — resume research\n/chainon — enable chain-wide launch, wallet and price monitoring\n/chainoff — turn chain monitoring off\n/status — current state\n/usage — X budget",

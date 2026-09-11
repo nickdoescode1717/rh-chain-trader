@@ -28,6 +28,8 @@ services:
       - ../packages/db/drizzle/0011_watch_intake.sql:/docker-entrypoint-initdb.d/0011_watch_intake.sql:ro
       - ../packages/db/drizzle/0012_x_budget.sql:/docker-entrypoint-initdb.d/0012_x_budget.sql:ro
       - ../packages/db/drizzle/0013_collection_control.sql:/docker-entrypoint-initdb.d/0013_collection_control.sql:ro
+      - ../packages/db/drizzle/0014_launch_preparation.sql:/docker-entrypoint-initdb.d/0014_launch_preparation.sql:ro
+      - ../packages/db/drizzle/0015_paper_snipes.sql:/docker-entrypoint-initdb.d/0015_paper_snipes.sql:ro
     # localhost only — never expose publicly
     ports:
       - "127.0.0.1:5432:5432"
@@ -52,6 +54,7 @@ services:
       TELEGRAM_OWNER_USER_ID: ${TELEGRAM_OWNER_USER_ID:-}
       MARKET_PRICING_ENABLED: ${MARKET_PRICING_ENABLED:-false}
       PAPER_LEDGER_ENABLED: ${PAPER_LEDGER_ENABLED:-false}
+      PAPER_SNIPER_ENABLED: ${PAPER_SNIPER_ENABLED:-false}
       IDENTITY_GATE_ENABLED: ${IDENTITY_GATE_ENABLED:-false}
       PAPER_CASH_ETH: ${PAPER_CASH_ETH:-1}
       PAPER_CASH_USD: ${PAPER_CASH_USD:-0}
@@ -74,6 +77,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       CHAIN_ID: ${CHAIN_ID:-4663}
       RPC_URL: ${RPC_URL:-}
+      PAPER_SNIPER_ENABLED: ${PAPER_SNIPER_ENABLED:-false}
       X_DISCOVERY_ENABLED: ${X_DISCOVERY_ENABLED:-false}
       X_BEARER_TOKEN: ${X_BEARER_TOKEN:-}
       WATCH_X_ENABLED: ${WATCH_X_ENABLED:-false}

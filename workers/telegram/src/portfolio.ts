@@ -90,7 +90,8 @@ export function formatBalance(b: PaperBalance): FormattedMessage {
   const missing = metrics.length - priced.length, other = tracked.length - eth.length;
   const partial = missing > 0 || other > 0 || b.valuationComplete === false;
   const pnl = priced.reduce((sum, p) => sum + p.pnl!, 0);
-  const lines = ["💰 BALANCE · PAPER", "", `Available cash  ${amount(b.cashEth)} ETH`,
+  const lines = ["💰 BALANCE · PAPER", "", `Available cash  ${amount(b.availableCashEth ?? b.cashEth)} ETH`,
+    ...(Number(b.reservedSnipeEth ?? 0) > 0 ? [`Reserved for paper snipes  ${amount(b.reservedSnipeEth!)} ETH`] : []),
     `Positions  ${amount(b.totals.positionsEth)} ETH${partial ? " (partial estimate)" : " (recorded marks)"}`,
     `Total equity  ${amount(b.equityEth)} ETH${partial ? " (partial estimate)" : ""}`, "", `Open positions  ${tracked.length}`,
     priced.length ? `Unrealized P&L  ${amount(pnl, true)} ETH${missing || other ? " (priced ETH positions only)" : ""}` : tracked.length ? "Unrealized P&L  Unavailable — prices missing or placeholders" : "Unrealized P&L  0 ETH · no open positions",

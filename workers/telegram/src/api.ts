@@ -66,6 +66,7 @@ export type BuyWallet = {
 };
 
 export type PaperBalance = {
+  reservedSnipeEth?: string; availableCashEth?: string;
   ledgerReconciled?: boolean;
   realizedPnlEth?: string;
   accounts?: { currency: string; cash: string; realizedPnl: string }[];
@@ -98,6 +99,9 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  listSnipes: () => Promise<SnipePlan[]>;
+  draftSnipe: (body: Record<string, unknown>) => Promise<SnipePlan>;
+  decideSnipe: (id: string, action: "arm" | "cancel", actor: string) => Promise<SnipePlan>;
   getCollection: () => Promise<CollectionState>;
   setCollection: (action: string, actor: string) => Promise<CollectionState>;
   getXUsage: () => Promise<XUsage>;
@@ -167,6 +171,9 @@ export type WatchTarget = {
     domains: { domain: string; sourceUrl: string }[]; links: { url: string; kind: string; sourceUrl: string }[];
     addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
 };
+export type SnipePlan = { id: string; status: string; reason: string; createdAt: string; armedAt: string | null; expiresAt: string | null;
+  tokenAddress: string | null; fillId: string | null; terms: { projectHandle: string; domain: string; deployerAddress: string;
+    spendEth: string; maxUnitPriceEth: string; minLiquidityUsd: number; hours: number; mode: "paper"; chainId: 4663 } };
 export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;
   requests24h: number; blockedUntil: string | null; resetsAt: string; accounting: string };
 export type CollectionState = { paused: boolean; chainEnabled: boolean; rpcBlockedUntil: string | null;
@@ -231,6 +238,9 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
     baseUrl,
     getCollection: () => collection(),
     setCollection: (action,actor) => collection({action,actor}),
+    listSnipes: () => snipe<SnipePlan[]>(""),
+    draftSnipe: body => snipe<SnipePlan>("",body),
+    decideSnipe: (id,action,actor) => snipe<SnipePlan>(`/${encodeURIComponent(id)}/${action}`,{actor}),
     listWatches: () => research("watches"),
     getXUsage: () => research("watches/usage"),
     getWatch: id => research(`watches/${encodeURIComponent(id)}`),
@@ -322,5 +332,10 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
     const r = await jsonFetch(joinUrl(baseUrl,"/collection"),body === undefined ? undefined : {method:"POST",headers:decisionHeaders(),body:JSON.stringify(body)});
     if(!r.ok)throw new Error("collection_unavailable");
     return (r.body as {data:CollectionState}).data;
+  }
+  async function snipe<T>(path: string, body?: unknown): Promise<T> {
+    const r = await jsonFetch(joinUrl(baseUrl, `/paper-snipes${path}`), body === undefined ? undefined : {method:"POST",headers:decisionHeaders(),body:JSON.stringify(body)});
+    if (!r.ok) throw new Error(String((r.body as {error?:string})?.error ?? "paper_snipe_unavailable"));
+    return (r.body as {data:T}).data;
   }
 }

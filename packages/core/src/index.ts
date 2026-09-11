@@ -9,3 +9,4 @@ export * from "./paper-execution.js";
 export * from "./identity.js";
 export * from "./watch.js";
 export * from "./launch.js";
+export * from "./snipe.js";

@@ -5,7 +5,7 @@ export type IdentityReport = {
   version: 1; source: { status: "matched" | "missing" | "conflicting" | "unavailable"; url: string; hash: string | null;
     excerpt: string; addresses: string[]; xLinked: boolean; reason: string };
   chain: { status: "matched" | "missing" | "conflicting" | "unavailable"; reason: string;
-    blockNumber?: string; blockHash?: string; confirmations?: number; method?: string };
+    blockNumber?: string; blockHash?: string; confirmations?: number; method?: string; blockTimestamp?: number };
 };
 export type IdentityVerdict = { status: IdentityState; reasons: string[]; claimId: string | null; checkedAt: string | null;
   sourceUrl: string | null; deploymentTx: string | null; scope: string; sourceHash?: string | null; deploymentBlockHash?: string | null; projectHandle?: string | null };

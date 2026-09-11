@@ -1,4 +1,6 @@
 import { collectionRoutes } from "./routes/collection.js";
+import { snipeRoutes } from "./routes/snipes.js";
+import { tickSnipes } from "./snipes.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -31,6 +33,7 @@ app.use(
 
 app.route("/health", healthRoutes);
 app.route("/collection", collectionRoutes);
+app.route("/paper-snipes", snipeRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/watchlist", watchlistRoutes);
 app.route("/protocols", protocolRoutes);
@@ -82,6 +85,9 @@ app.all("/orders/*", (c) =>
 );
 
 await initDb();
+// Completion-scheduled, DB-only evaluator; no overlapping ticks or network polling.
+async function scheduleSnipes() { try { await tickSnipes(); } catch { console.warn("[paper-snipe] evaluator unavailable"); } setTimeout(scheduleSnipes, 5000).unref(); }
+void scheduleSnipes();
 
 console.log(
   `[api] listening on http://${config.host}:${config.port} (chain ${config.chainId})`

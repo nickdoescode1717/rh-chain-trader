@@ -68,7 +68,9 @@ export async function inspectIdentityChain(c: Claim, rpc: Rpc): Promise<Identity
   if (!code(birthCode) || !code(currentCode)) return missing("token_contract_code_unavailable");
   if (low(finalBlock?.hash) !== low(receipt.blockHash) || low(finalHead?.hash) !== low(head.hash)) return conflict("chain_changed_during_verification");
   return { status: "matched", reason: "canonical_creation_token_and_deployer_match", blockNumber: String(height), blockHash: low(receipt.blockHash),
-    confirmations: Number(tip - height + 1n), method };
+    confirmations: Number(tip - height + 1n), method,
+    ...(blockNumber(canonical.timestamp) != null && blockNumber(canonical.timestamp)! <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? { blockTimestamp: Number(blockNumber(canonical.timestamp)) } : {}) };
 }
 export async function inspectIdentity(c: Claim, read = readPublicPage, rpc: Rpc = createIdentityRpc()): Promise<IdentityReport> {
   const sourceTask = async (): Promise<IdentityReport["source"]> => {

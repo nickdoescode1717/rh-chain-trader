@@ -10,11 +10,14 @@ export async function collectionState(db: Db) {
 }
 export async function changeCollection(db: Db, action: "stop" | "run" | "chainon" | "chainoff", actor: string) {
   await db.transaction(async tx => {
+    // Same ordering as paper settlement: book before collection, so /stop cannot race an automatic fill.
+    await tx.execute(sql`select pg_advisory_xact_lock(4663,9009)`);
     await tx.execute(sql`select pg_advisory_xact_lock(4663,9013)`);
     if (action === "stop") await tx.execute(sql`update collection_control set paused=true,chain_enabled=false,changed_by=${actor},updated_at=now() where id=1`);
     if (action === "run") await tx.execute(sql`update collection_control set paused=false,chain_enabled=false,changed_by=${actor},updated_at=now() where id=1`);
     if (action === "chainon") await tx.execute(sql`update collection_control set paused=false,chain_enabled=true,changed_by=${actor},updated_at=now() where id=1`);
     if (action === "chainoff") await tx.execute(sql`update collection_control set chain_enabled=false,changed_by=${actor},updated_at=now() where id=1`);
+    if (action === "stop" || action === "chainoff" || action === "run") await tx.execute(sql`update paper_snipes set status='cancelled',reason='collection_disabled' where status='armed'`);
   });
   return collectionState(db);
 }

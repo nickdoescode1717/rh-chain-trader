@@ -29,6 +29,7 @@ import { handleIdentityInput } from "./identity.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 import { createWatchAlerts, handleWatchInput } from "./watches.js";
 import {handleCollectionInput} from "./collection.js";
+import {handleSnipeInput,createSnipeAlerts} from "./snipes.js";
 
 function env(name: string, fallback?: string): string | undefined {
   const v = process.env[name];
@@ -58,8 +59,11 @@ const liveBot = dry ? null : createTelegramBot(TOKEN, false);
 const dryBot = dry ? createDryRunBot() : null;
 let pollResearch = async () => {};
 let pollWatches = async () => {};
+let pollSnipes = async () => {};
 if (liveBot && CHAT_ID) {
   try {
+    pollSnipes = createSnipeAlerts(api,fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!+".snipes"),
+      async card=>{await liveBot.sendMessage(CHAT_ID,card.text,card.reply_markup);});
     pollWatches = createWatchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")! + ".watches"), CHAT_ID,
       async card => { await liveBot.sendMessage(CHAT_ID, card.text, card.reply_markup); });
     pollResearch = createResearchAlerts(api, fileAlertStore(env("TG_RESEARCH_STATE_PATH", "/tmp/rh-tg-research-sent.json")!), CHAT_ID,
@@ -207,7 +211,9 @@ async function processTgUpdates(): Promise<void> {
     // Gate both commands and callbacks before any backend access, including paper approvals.
     if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
-    if (msg?.text) {
+      if (msg?.text) {
+        const snipe = await handleSnipeInput(api,msg.text,`telegram:${msg.from!.id}`);
+        if(snipe){await liveBot.sendMessage(msg.chat.id,snipe.text,snipe.reply_markup);continue;}
       const control = await handleCollectionInput(api,msg.text,`telegram:${msg.from!.id}`);
       if(control){await liveBot.sendMessage(msg.chat.id,control.text,control.reply_markup);continue;}
       const watch = await handleWatchInput(api, msg.text, `telegram:${msg.from!.id}`);
@@ -254,7 +260,13 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
-    if(cq.data.startsWith("collection:")){
+      if(cq.data.startsWith("snipe:")){
+        await liveBot.answerCallbackQuery(cq.id,"Checking paper plan…");
+        const card=await handleSnipeInput(api,cq.data,`telegram:${cq.from!.id}`);
+        if(card)await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+        continue;
+      }
+      if(cq.data.startsWith("collection:")){
       await liveBot.answerCallbackQuery(cq.id,"Updating collection controls…");
       const card=await handleCollectionInput(api,cq.data,`telegram:${cq.from!.id}`);
       if(card)await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
@@ -333,7 +345,8 @@ async function tick(): Promise<void> {
   if (Date.now() >= nextResearchPoll) {
     nextResearchPoll = Date.now() + 60_000;
     try { await pollResearch(); } catch { console.warn("[telegram] research poll unavailable; will retry"); }
-    try { await pollWatches(); } catch { console.warn("[telegram] watch poll unavailable; will retry"); }
+      try { await pollWatches(); } catch { console.warn("[telegram] watch poll unavailable; will retry"); }
+      try { await pollSnipes(); } catch { console.warn("[telegram] paper plan poll unavailable; will retry"); }
   }
 }
 

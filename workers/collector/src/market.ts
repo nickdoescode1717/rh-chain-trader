@@ -1,6 +1,6 @@
 import {waitForCollection} from "./collection-control.js";
 import { fetchMarketQuote } from "@rh/core";
-import { createDb, marketQuotes, positions, purchaseProposals } from "@rh/db";
+import { createDb, marketQuotes, positions, purchaseProposals, paperSnipes } from "@rh/db";
 import { eq, inArray } from "drizzle-orm";
 import type { RpcClient } from "./rpc.js";
 export async function runMarketLoop(rpc: RpcClient): Promise<void> {
@@ -10,13 +10,14 @@ export async function runMarketLoop(rpc: RpcClient): Promise<void> {
     await waitForCollection(true);
     try {
       if (await rpc.getChainId() !== 4663) throw new Error("pricing_chain_mismatch");
-      const [open, pending, cached] = await Promise.all([
+      const [open, pending, cached, snipes] = await Promise.all([
         db.select({ address: positions.tokenAddress }).from(positions).where(inArray(positions.status, ["simulated_open", "alert_fired"])),
         db.select({ address: purchaseProposals.tokenAddress, expiresAt: purchaseProposals.expiresAt }).from(purchaseProposals).where(eq(purchaseProposals.status, "pending_nick")),
         db.select({ address: marketQuotes.tokenAddress, attempted: marketQuotes.lastAttemptAt }).from(marketQuotes),
+        db.select({ address: paperSnipes.tokenAddress, expiresAt: paperSnipes.expiresAt }).from(paperSnipes).where(eq(paperSnipes.status, "armed")),
       ]);
       const attempts = new Map(cached.map((q) => [q.address, q.attempted.getTime()]));
-      const addresses = [...new Set([...open, ...pending.filter((p) => !p.expiresAt || p.expiresAt.getTime() > Date.now())]
+      const addresses = [...new Set([...open, ...pending.filter((p) => !p.expiresAt || p.expiresAt.getTime() > Date.now()), ...snipes.filter(p => p.expiresAt && p.expiresAt.getTime() > Date.now())]
         .map((p) => p.address?.toLowerCase()).filter((a): a is string => !!a && /^0x[a-f0-9]{40}$/.test(a)))];
       addresses.sort((a, b) => (attempts.get(a) ?? 0) - (attempts.get(b) ?? 0));
       for (const address of addresses.slice(0, 10)) {
