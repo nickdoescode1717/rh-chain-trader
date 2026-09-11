@@ -19,6 +19,9 @@ export function installCollectionControl(db: Db) {
     let method = "unknown";
     if (rpc) { try { method = JSON.parse(String(init?.body)).method ?? method; } catch { /* count unknown */ } }
     await permitCollection(db, rpc ? method : undefined);
+    // A freshly authorized resume must not inherit an already-aborted controller.
+    if (all.signal.aborted) all = new AbortController();
+    if (rpc && chain.signal.aborted) chain = new AbortController();
     const signals = [all.signal, AbortSignal.timeout(15_000), ...(rpc ? [chain.signal] : []), ...(init?.signal ? [init.signal] : []), ...(input instanceof Request ? [input.signal] : [])];
     const response = await original(input, { ...init, redirect: "error", signal: AbortSignal.any(signals) });
     if (rpc && [401,402,403,429].includes(response.status)) await pauseRpcProvider(db);

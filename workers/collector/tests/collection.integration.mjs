@@ -7,7 +7,7 @@ assert.match(new URL(process.env.DATABASE_URL).pathname,/^\/rh_pricing_test_[a-f
 const sql=postgres(process.env.DATABASE_URL),db=createDb(process.env.DATABASE_URL);
 await changeCollection(db,'stop','fixture');await assert.rejects(permitCollection(db,'eth_blockNumber'),/stopped/);
 let network=0;process.env.RPC_URL='https://rpc.fixture.org/';
-globalThis.fetch=async()=>{network++;return Response.json({result:'0x123'});};
+globalThis.fetch=async(_input,init)=>{assert.equal(init.signal.aborted,false);network++;return Response.json({result:'0x123'});};
 installCollectionControl(db);
 await assert.rejects(fetch(process.env.RPC_URL,{method:'POST',body:'{"method":"eth_blockNumber"}'}));assert.equal(network,0);
 await changeCollection(db,'run','fixture');await fetch('https://website.fixture.org/');assert.equal(network,1);
