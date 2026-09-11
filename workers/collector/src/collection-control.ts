@@ -1,7 +1,7 @@
 import { collectionState, permitCollection, pauseRpcProvider, type Db } from "@rh/db";
 let database: Db | null = null;
 let all = new AbortController(), chain = new AbortController();
-export async function collectionPermit() { if (database) await permitCollection(database); }
+export async function collectionPermit() { if (database) { await permitCollection(database); if (all.signal.aborted) all = new AbortController(); } }
 export const collectionSignal = (): AbortSignal => all.signal;
 export async function waitForCollection(rpc = false) {
   if (!database) return;
@@ -39,3 +39,4 @@ export function installCollectionControl(db: Db) {
   void tick();
 }
 export async function rpcProviderBackoff() { if (database) await pauseRpcProvider(database); }
+
