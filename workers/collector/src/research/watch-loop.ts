@@ -1,3 +1,4 @@
+import {waitForCollection} from "../collection-control.js";
 import { and, eq, sql } from "drizzle-orm";
 import { createDb, watchTargets, researchProjects, socialAccounts } from "@rh/db";
 import { discoverWatch } from "./watch-discovery.js";
@@ -12,6 +13,7 @@ export async function runWatchLoop(): Promise<void> {
   const social = process.env.WATCH_X_ENABLED === "true" && process.env.TWITTERAPI_IO_KEY
     ? budgetedXReader(db, createWatchSocialReader(process.env.TWITTERAPI_IO_KEY)) : null;
   for (;;) {
+    await waitForCollection(false);
     try { await scanNextWatch(db, social); }
     catch { console.warn("[watch] collection unavailable; retrying on schedule"); }
     await new Promise(resolve => setTimeout(resolve, 60_000));
@@ -70,3 +72,4 @@ export async function scanNextWatch(db: ReturnType<typeof createDb>, social: Par
       eq(watchTargets.revision, claimed.revision), eq(watchTargets.enabled, true)));
   }
 }
+

@@ -4,6 +4,7 @@
  * Never signs or submits transactions.
  */
 import { CHAIN_ID, BLOCKSCOUT_BASE } from "@rh/core";
+import { rpcProviderBackoff } from "./collection-control.js";
 
 export interface LogFilter {
   fromBlock: number | string;
@@ -56,9 +57,8 @@ function isRangeTooLarge(message: string): boolean {
     m.includes("block range") ||
     m.includes("query returned more than") ||
     m.includes("response size") ||
-    m.includes("exceed") ||
-    m.includes("too many") ||
-    m.includes("limit exceeded") ||
+    m.includes("too many results") ||
+    m.includes("too many logs") ||
     m.includes("range is too large")
   );
 }
@@ -67,11 +67,13 @@ export function createRpcClient(rpcUrl?: string): RpcClient {
   const url = rpcUrl ?? process.env.RPC_URL ?? "";
   const configured = Boolean(url);
   let nextId = 1;
+  let chainCache: { value: number; until: number } | null = null;
 
   async function rpcCall<T>(method: string, params: unknown[]): Promise<T> {
     const id = nextId++;
     const res = await fetch(url, {
       method: "POST",
+      redirect: "error", signal: AbortSignal.timeout(15_000),
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
     });
@@ -83,6 +85,9 @@ export function createRpcClient(rpcUrl?: string): RpcClient {
       error?: { code?: number; message?: string };
     };
     if (json.error) {
+      if (/compute units|credits|quota|rate limit|requests per|too many requests|monthly|billing/i.test(json.error.message ?? "")) {
+        await rpcProviderBackoff(); throw new Error("rpc_provider_cooldown");
+      }
       const err = new Error(json.error.message ?? "RPC error");
       (err as Error & { code?: number }).code = json.error.code;
       throw err;
@@ -107,10 +112,12 @@ export function createRpcClient(rpcUrl?: string): RpcClient {
 
     async getChainId() {
       if (!configured) return null;
+      if (chainCache && Date.now() < chainCache.until) return chainCache.value;
       const result = await rpcCall<string>("eth_chainId", []);
       if (typeof result !== "string" || !/^0x[0-9a-f]+$/i.test(result)) throw new Error("invalid_chain_id_response");
       const id = Number(BigInt(result));
       if (!Number.isSafeInteger(id)) throw new Error("invalid_chain_id_response");
+      chainCache = { value: id, until: Date.now() + 300_000 };
       return id;
     },
 

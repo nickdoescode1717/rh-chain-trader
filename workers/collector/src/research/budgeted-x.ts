@@ -1,8 +1,10 @@
 import { reserveXRequest, finishXRequest, type Db } from "@rh/db";
 import type { WatchSocialReader, WatchProfile, WatchPost } from "./twitterapi.js";
+import { collectionPermit } from "../collection-control.js";
 
 export function budgetedXReader(db: Db, provider: WatchSocialReader): WatchSocialReader {
   async function read<T>(kind: "profile" | "posts", handle: string, age: number, request: () => Promise<T>): Promise<T> {
+    await collectionPermit();
     const reserved = await reserveXRequest(db, kind, handle, age);
     if (reserved.cached !== null) return reserved.cached as T;
     try {

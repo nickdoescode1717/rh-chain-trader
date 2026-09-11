@@ -11,7 +11,7 @@ export const candidateAddresses = (project: ResearchProject) => [...new Set((pro
   .filter((address) => !/^0x0{40}$/.test(address)))].sort();
 
 export function researchMenu(): BotCard {
-  return { text: "RH CHAIN BOT · PAPER MODE\n\n/projects — watched projects\n/research @handle — latest research\n/watch @account or website — discover and watch a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n/identity @handle — token identity evidence\n/proposals — latest five pending paper proposals\n\nExample: /watch @tradedotcv\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
+  return { text: "RH CHAIN BOT · PAPER MODE\n\n/stop — pause all data collection\n/run — resume research\n/status — collection and RPC usage\n/usage — X data budget\n/projects — watched projects\n/research @handle — latest research\n/watch @account or website — discover and watch a project\n/pause @handle or /resume @handle — project + X monitoring\n/balance — paper balance\n/positions — holdings and confirmed paper sells\n/history — paper trade history\n/identity @handle — token identity evidence\n/proposals — latest five pending paper proposals\n\nExample: /watch @tradedotcv\n\nResearch reports are observations, not buy approvals. Existing proposal buttons handle paper approvals. TwitterAPI.io setup is pending; live buying and selling are not connected.",
     reply_markup: { inline_keyboard: [[button("Projects", "watch:list:0"), button("Help", "research:help")]] } };
 }
 
@@ -103,4 +103,5 @@ export async function handleResearchInput(api: ResearchApi, input: string, callb
     return { text: "Project research is unavailable right now. Check the backend connection and research migration, then retry. No purchase was created." };
   }
 }
+
 

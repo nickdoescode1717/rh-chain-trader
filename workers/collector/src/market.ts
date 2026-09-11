@@ -1,3 +1,4 @@
+import {waitForCollection} from "./collection-control.js";
 import { fetchMarketQuote } from "@rh/core";
 import { createDb, marketQuotes, positions, purchaseProposals } from "@rh/db";
 import { eq, inArray } from "drizzle-orm";
@@ -6,6 +7,7 @@ export async function runMarketLoop(rpc: RpcClient): Promise<void> {
   if (process.env.MARKET_PRICING_ENABLED !== "true" || !process.env.DATABASE_URL) return;
   const db = createDb(process.env.DATABASE_URL);
   for (;;) {
+    await waitForCollection(true);
     try {
       if (await rpc.getChainId() !== 4663) throw new Error("pricing_chain_mismatch");
       const [open, pending, cached] = await Promise.all([
@@ -35,3 +37,4 @@ export async function runMarketLoop(rpc: RpcClient): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 60_000));
   }
 }
+

@@ -1,3 +1,4 @@
+import {waitForCollection} from "../collection-control.js";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { createDb, researchProjects, socialSignals, socialAccounts, watchTargets } from "@rh/db";
 import { inspectProject } from "./inspect.js";
@@ -8,6 +9,7 @@ export async function runProjectResearchLoop(): Promise<void> {
   }
   const db = createDb(process.env.DATABASE_URL);
   for (;;) {
+    await waitForCollection(false);
     try {
       // One project at a time; at most hourly per project, including failed attempts.
       const [project] = await db.select().from(researchProjects).where(and(eq(researchProjects.enabled, true),
@@ -41,3 +43,4 @@ export async function runProjectResearchLoop(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 60_000));
   }
 }
+

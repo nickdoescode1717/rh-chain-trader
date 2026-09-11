@@ -28,6 +28,7 @@ import { handlePaperCallback } from "./paper-trading.js";
 import { handleIdentityInput } from "./identity.js";
 import { createResearchAlerts, fileAlertStore } from "./research-alerts.js";
 import { createWatchAlerts, handleWatchInput } from "./watches.js";
+import {handleCollectionInput} from "./collection.js";
 
 function env(name: string, fallback?: string): string | undefined {
   const v = process.env[name];
@@ -207,6 +208,8 @@ async function processTgUpdates(): Promise<void> {
     if (!isAuthorizedUpdate(u, CHAT_ID, OWNER_ID)) continue;
     const msg = u.message;
     if (msg?.text) {
+      const control = await handleCollectionInput(api,msg.text,`telegram:${msg.from!.id}`);
+      if(control){await liveBot.sendMessage(msg.chat.id,control.text,control.reply_markup);continue;}
       const watch = await handleWatchInput(api, msg.text, `telegram:${msg.from!.id}`);
       if (watch) { await liveBot.sendMessage(msg.chat.id, watch.text, watch.reply_markup); continue; }
       const card=await handleIdentityInput(api,msg.text,`telegram:${msg.from!.id}`);
@@ -251,6 +254,12 @@ async function processTgUpdates(): Promise<void> {
 
     const cq = u.callback_query;
     if (!cq?.data) continue;
+    if(cq.data.startsWith("collection:")){
+      await liveBot.answerCallbackQuery(cq.id,"Updating collection controls…");
+      const card=await handleCollectionInput(api,cq.data,`telegram:${cq.from!.id}`);
+      if(card)await liveBot.editMessage(cq.message!.chat.id,cq.message!.message_id,card.text,card.reply_markup);
+      continue;
+    }
     if (cq.data.startsWith("watch:")) {
       await liveBot.answerCallbackQuery(cq.id, "Updating watch…");
       const card = await handleWatchInput(api, cq.data, `telegram:${cq.from!.id}`);

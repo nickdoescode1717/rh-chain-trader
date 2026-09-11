@@ -1,3 +1,4 @@
+import {waitForCollection} from "./collection-control.js";
 import { createHash } from "node:crypto";
 import { createDb, identityClaims, researchProjects } from "@rh/db";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -90,6 +91,7 @@ export async function runIdentityLoop() {
   if (process.env.IDENTITY_GATE_ENABLED !== "true" || !process.env.DATABASE_URL) return;
   const db = createDb(process.env.DATABASE_URL);
   for (;;) {
+    await waitForCollection(true);
     try {
       const rows = await db.select({ claim: identityClaims }).from(identityClaims)
         .innerJoin(researchProjects, eq(researchProjects.handle, identityClaims.projectHandle))
@@ -106,3 +108,5 @@ export async function runIdentityLoop() {
     await new Promise(resolve => setTimeout(resolve, 60_000));
   }
 }
+
+

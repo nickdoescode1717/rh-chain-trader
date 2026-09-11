@@ -1,3 +1,4 @@
+import { collectionRoutes } from "./routes/collection.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -29,6 +30,7 @@ app.use(
 );
 
 app.route("/health", healthRoutes);
+app.route("/collection", collectionRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/watchlist", watchlistRoutes);
 app.route("/protocols", protocolRoutes);
@@ -90,3 +92,4 @@ serve({
   port: config.port,
   hostname: config.host,
 });
+

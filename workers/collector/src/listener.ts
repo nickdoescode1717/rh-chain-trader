@@ -1,3 +1,4 @@
+import {waitForCollection} from "./collection-control.js";
 /**
  * On-chain launch listener (paper / research only).
  * Polls Pons V2 + pools.trade entries via eth_getLogs, upserts tokens + evidence.
@@ -156,7 +157,9 @@ async function upsertLaunch(
     return false;
   }
 
-  const meta = await fetchErc20Meta(rpc, tokenAddress);
+  const [known] = await db.select({ name: tokens.name, symbol: tokens.symbol, decimals: tokens.decimals }).from(tokens)
+    .where(and(eq(tokens.chainId,chainId),eq(tokens.address,tokenAddress.toLowerCase()))).limit(1);
+  const meta = known?.name && known.symbol && known.symbol !== "???" ? { name: known.name, symbol: known.symbol, decimals: known.decimals ?? 18 } : await fetchErc20Meta(rpc, tokenAddress);
   const blockNumber = parseInt(log.blockNumber, 16);
   const txHash = log.transactionHash;
 
@@ -248,7 +251,7 @@ async function upsertLaunch(
 }
 
 export async function runListenerLoop(rpc: RpcClient, intervalMs?: number) {
-  const pollMs = intervalMs ?? Number(process.env.COLLECTOR_POLL_MS ?? 15_000);
+  const pollMs = Math.max(300_000, intervalMs ?? Number(process.env.COLLECTOR_POLL_MS ?? 300_000)) || 300_000;
   const chainId = rpc.chainId || CHAIN_ID;
   const lookback = Number(process.env.COLLECTOR_LOOKBACK_BLOCKS ?? 5_000);
 
@@ -297,6 +300,7 @@ export async function runListenerLoop(rpc: RpcClient, intervalMs?: number) {
   }
 
   for (;;) {
+    await waitForCollection(true);
     try {
       if (!rpc.configured) {
         console.log(
@@ -308,7 +312,7 @@ export async function runListenerLoop(rpc: RpcClient, intervalMs?: number) {
           console.log("[collector] null head block");
         } else {
           const fromBlock = cursor.lastBlock + 1;
-          const toBlock = head;
+          const toBlock = Math.min(head, fromBlock + 1999);
           if (fromBlock <= toBlock) {
             let ingested = 0;
             for (const source of LAUNCH_POLL_SOURCES) {
@@ -359,3 +363,5 @@ export async function runListenerLoop(rpc: RpcClient, intervalMs?: number) {
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
+
+

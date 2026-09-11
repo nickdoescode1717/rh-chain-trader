@@ -98,6 +98,8 @@ export type PaperBalance = {
 };
 
 export type ApiClient = {
+  getCollection: () => Promise<CollectionState>;
+  setCollection: (action: string, actor: string) => Promise<CollectionState>;
   getXUsage: () => Promise<XUsage>;
   listWatches: () => Promise<WatchTarget[]>;
   getWatch: (id: string) => Promise<WatchTarget>;
@@ -161,6 +163,8 @@ export type WatchTarget = {
 };
 export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;
   requests24h: number; blockedUntil: string | null; resetsAt: string; accounting: string };
+export type CollectionState = { paused: boolean; chainEnabled: boolean; rpcBlockedUntil: string | null;
+  rpcRequestsToday: number; rpcDailyRequestLimit: number; methods: {method:string;attempts:number}[] };
 
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
@@ -219,6 +223,8 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
   }
   return {
     baseUrl,
+    getCollection: () => collection(),
+    setCollection: (action,actor) => collection({action,actor}),
     listWatches: () => research("watches"),
     getXUsage: () => research("watches/usage"),
     getWatch: id => research(`watches/${encodeURIComponent(id)}`),
@@ -304,5 +310,10 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
     });
     if (!r.ok) throw new Error(`research_http_${r.status}`);
     return (r.body as { data: WatchTarget }).data;
+  }
+  async function collection(body?: unknown): Promise<CollectionState> {
+    const r = await jsonFetch(joinUrl(baseUrl,"/collection"),body === undefined ? undefined : {method:"POST",headers:decisionHeaders(),body:JSON.stringify(body)});
+    if(!r.ok)throw new Error("collection_unavailable");
+    return (r.body as {data:CollectionState}).data;
   }
 }
