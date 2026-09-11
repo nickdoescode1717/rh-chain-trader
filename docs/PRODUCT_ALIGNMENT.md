@@ -84,3 +84,7 @@ See [PRELAUNCH_RESEARCH.md](PRELAUNCH_RESEARCH.md) for the implemented research 
 See [SIMPLE_WATCH.md](SIMPLE_WATCH.md): one X profile or website is sufficient to save a watch. Linked accounts, website evidence, public subdomains and mentioned addresses are assembled with provenance. Unresolved/ambiguous mappings stay visible; no automatic issuer trust. Related-account collection is bounded to six profiles and recent timelines when the deferred vendor setup is enabled.
 
 
+
+## Provider budgets and stop controls (2026-09-11 UTC)
+US$0.50 X reservations/shared caches and persistent Telegram collection controls are deployed. Alchemy monitoring now has a 2,000-request daily guard, five-minute broad polling and persistent cursors; request counts are not compute-unit billing. The owner reported exhausted Alchemy quota: all collection is currently STOPPED, with chain OFF. Do not resume it during maintenance. /run resumes research with chain OFF. See COLLECTION_CONTROLS.md and deployments/2026-09-11-budget-controls.md.
+

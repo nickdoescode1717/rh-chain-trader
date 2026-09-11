@@ -42,7 +42,8 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
-**X budget and caching (2026-09-10)**
+**X budget and collection controls (deployed 2026-09-11 UTC)**
+- Application f512a081 deployed with all collection STOPPED and chain monitoring OFF following exhausted Alchemy quota. Do not resume automatically. /stop, /run (research only), /chainon, /chainoff and /status are Telegram owner controls. Migrations 0012/0013, 109 local tests and five isolated integration scripts passed. Live checks showed 0 new RPC/X calls and preserved both cursors plus 0.88 ETH / 3 holdings. See docs/deployments/2026-09-11-budget-controls.md and docs/COLLECTION_CONTROLS.md.
 - Migration 0012 reserves paid calls under a US$0.50 rolling-24-hour ceiling, with shared daily profile/hourly primary/six-hour related timeline caches and persistent failure backoff. Telegram /usage reports conservative reservations, not provider billing. Key is installed server-side; never print it. See docs/X_BUDGET.md.
 
 
@@ -173,6 +174,7 @@ Confirm env: `ENABLE_TRADING=false`, `ENABLE_TX_SUBMISSION=false`. Empty watched
 ---
 
 *Maintained by Coder for multi-agent continuity. Update when state or rules change.*
+
 
 
 
