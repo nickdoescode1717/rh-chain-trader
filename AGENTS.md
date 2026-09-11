@@ -42,6 +42,12 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Conditional paper snipes (deployed 2026-09-11 UTC)**
+- Application `63aafd59755ca508f90a385ac95c4541c690039e` deployed; migration 0015; PAPER_SNIPER_ENABLED true on API/collector. `/snipe` drafts immutable plans, Telegram arm reserves capital, fresh exact mainnet identity and market gates can trigger one atomic paper entry. `/snipes` + alerts show results; `/balance` distinguishes reserved/available funds. See docs/PAPER_SNIPER.md and docs/deployments/2026-09-11-paper-sniper.md.
+- Targeted Pons V2 polling rotates armed deployers every ten seconds for ten minutes after arming, within existing RPC limits; DB evaluator every five seconds. No idle extra RPC. Collection stop, chain-off or research-only run cancels armed plans; no silent re-arm. Mainnet 4663 and testnet 46630 confirmed against Robinhood docs. Testnet scout addresses never establish mainnet identity.
+- 119 local tests, nine isolated PostgreSQL scripts and deployed Telegram handler checks passed. 0.88 ETH/three holdings, claims/settings/cursors preserved. ZERO plans armed/created; ALL collection STOPPED, chain OFF, no new X/RPC calls observed. Do not resume automatically. No live signer/DEX execution or automated exits; actual launch/provider trial remains outstanding.
+- Latest backup `/root/rh-deploy-backups/20260911T190408Z-snipe`; marker snipe-current. Paper snipes depend on migration 0015 even for collection controls and ledger reservation reads. Preserve additive schema during rollback; do not restore older accounting over new fills.
+
 **Flagged launch DD (deployed 2026-09-11 UTC)**
 - Application `13f09af576dc18aa950f97a508d05d2a87189462` deployed. `/launch` and watch-card flags add bounded docs DD, role-labeled deployer/token candidates, exact Pons V2 event matching and untrusted identity drafts for Telegram review. See docs/LAUNCH_PREPARATION.md and docs/deployments/2026-09-11-launch-preparation.md.
 - 116 local tests and six isolated PostgreSQL scripts passed; deployed Telegram handler checks passed. 0.88 ETH / three legacy positions, project states, claims and cursors preserved. No new X/RPC requests during verification.
