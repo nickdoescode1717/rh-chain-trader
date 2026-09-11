@@ -42,6 +42,12 @@ Then: evidence/provenance + market/contract checks → separate meme/utility opp
 
 ## 3. Current state (main, ~2026-09-09)
 
+**Flagged launch DD (deployed 2026-09-11 UTC)**
+- Application `13f09af576dc18aa950f97a508d05d2a87189462` deployed. `/launch` and watch-card flags add bounded docs DD, role-labeled deployer/token candidates, exact Pons V2 event matching and untrusted identity drafts for Telegram review. See docs/LAUNCH_PREPARATION.md and docs/deployments/2026-09-11-launch-preparation.md.
+- 116 local tests and six isolated PostgreSQL scripts passed; deployed Telegram handler checks passed. 0.88 ETH / three legacy positions, project states, claims and cursors preserved. No new X/RPC requests during verification.
+- ALL collection remains STOPPED, chain OFF. No watches were auto-created or flagged. Do not resume during maintenance. This is preparation only: no automatic trades, low-latency sniper, new factory/direct-deployer adapter or funding-history tracing.
+- Latest backup `/root/rh-deploy-backups/20260911T183718Z-launch`; helper scripts under Desktop Files/Bot Operations are rh-launch-build-test.py, rh-launch-cutover.py and rh-launch-verify.py. They target the exact application hash; adapt and revalidate for future releases.
+
 **X budget and collection controls (deployed 2026-09-11 UTC)**
 - Application f512a081 deployed with all collection STOPPED and chain monitoring OFF following exhausted Alchemy quota. Do not resume automatically. /stop, /run (research only), /chainon, /chainoff and /status are Telegram owner controls. Migrations 0012/0013, 109 local tests and five isolated integration scripts passed. Live checks showed 0 new RPC/X calls and preserved both cursors plus 0.88 ETH / 3 holdings. See docs/deployments/2026-09-11-budget-controls.md and docs/COLLECTION_CONTROLS.md.
 - Migration 0012 reserves paid calls under a US$0.50 rolling-24-hour ceiling, with shared daily profile/hourly primary/six-hour related timeline caches and persistent failure backoff. Telegram /usage reports conservative reservations, not provider billing. Key is installed server-side; never print it. See docs/X_BUDGET.md.
