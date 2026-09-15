@@ -41,3 +41,13 @@ test("snipe alerts survive restart and ignore unchanged statuses",async()=>{
  const send=async()=>{sent++;};await createSnipeAlerts(api,store,send)();await createSnipeAlerts(api,store,send)();assert.equal(sent,1);
  p.status="filled";p.fillId="fill";await createSnipeAlerts(api,store,send)();assert.equal(sent,2);
 });
+test("route button requests simulation only and draft route results notify once",async()=>{
+ const p=fixture(),calls:unknown[]=[];
+ const api={listSnipes:async()=>[p],draftSnipe:async()=>p,decideSnipe:async(...args:unknown[])=>{calls.push(args);return p;}};
+ await handleSnipeInput(api,`snipe:route:${p.id}`,'telegram:42');assert.deepEqual(calls,[[p.id,'route','telegram:42']]);
+ p.routeReport={status:'passed',reason:'round_trip_simulated',observedAt:new Date().toISOString(),expiresAt:new Date(Date.now()-1).toISOString(),quantity:'100',spendEth:'0.01',buyFeeEth:'0.0001',creatorTaxEth:'0.0002',sellReturnEth:'0.0094',roundTripLossEth:'0.0006',executionGasEstimateEth:'0.00001',blockNumber:100};
+ const card=formatSnipe(p);assert.match(card.text,/historical result/);assert.match(card.text,/does not change existing paper fills/);assert.ok(card.text.length<4096);
+ assert.ok(card.reply_markup!.inline_keyboard.flat().some(b=>b.text==='Test buy + sell'));
+ let state={},sent=0;const store={load:()=>state,save:(s:{})=>{state=s;}};
+ await createSnipeAlerts(api,store,async()=>{sent++;})();await createSnipeAlerts(api,store,async()=>{sent++;})();assert.equal(sent,1);
+});

@@ -50,6 +50,9 @@ const reasons: Record<string,string> = {
   token_already_bought:"This token is already held or was bought by a snipe. A duplicate buy was blocked.",
   paper_fill_recorded:"One simulated buy was recorded. Open /positions for the holding and /history for the fill.",
   owner_cancelled:"You cancelled this plan. Its paper funds are released.",
+  enable_chain_collection_before_route_check:"Send /chainon if you want to enable paid chain checks, then tap Test buy + sell. This does not arm the plan.",
+  route_requires_open_plan:"Open or create a draft/armed plan in /snipes before requesting a route test.",
+  route_checks_busy:"Three route tests were requested recently. Wait five minutes before requesting another.",
 };
 function explain(reason: string) {
   return reasons[reason] ?? (reason.startsWith("identity_") ? "Identity checks have not passed. Open Identity review for missing, stale or conflicting evidence." : clean(reason.replaceAll("_"," ")));
@@ -61,12 +64,14 @@ export function formatSnipe(p: SnipePlan): BotCard {
     `Reserve / spend once: ${t.spendEth} ETH`, `Maximum modeled price: ${t.maxUnitPriceEth} ETH/token`, `Minimum quoted liquidity: $${t.minLiquidityUsd}`,
     p.expiresAt ? `Expires: ${p.expiresAt}` : `Valid for ${t.hours}h after arming; confirm this draft within 10 minutes.`,
     ...(p.tokenAddress ? [`Mainnet CA: ${p.tokenAddress}`] : ["CA: wait for independently verified mainnet deployment"]),
+    ...routeSummary(p),
     "\nArming reserves paper funds and authorizes ONE automatic paper buy after every gate passes. Launch must occur after arming; entry window is 10 minutes after deployment.",
     "Pons V2 checks: ~10s for the first 10 minutes, then ~5 minutes until expiry. Due deployers share requests. Backlogs, outages and the shared RPC cap can delay detection. No first-block guarantee.",
     "Requires fresh owner-reviewed identity and market data. Quote/model only: 0.3% fee + 0.5% slippage; gas, taxes and sellability are not simulated. No automated exits or real transaction.",
     "\n/stop, /chainoff and /run cancel armed plans. Resuming collection never re-arms them."].join("\n"), reply_markup:{inline_keyboard:[
       ...(p.status === "draft" ? [[button("Arm paper plan",`snipe:arm:${p.id}`)]] : []),
       ...(["draft","armed"].includes(p.status) ? [[button("Cancel plan",`snipe:cancel:${p.id}`)]] : []),
+      ...(["draft","armed"].includes(p.status) ? [[button("Test buy + sell",`snipe:route:${p.id}`)]] : []),
       [button("Refresh",`snipe:show:${p.id}`),button("All plans","snipe:list:0")],
       [button("Identity review",`identity:list:${t.projectHandle}`)],
     ]}};
@@ -84,9 +89,9 @@ export async function handleSnipeInput(api: API,input: string,actor: string): Pr
     }
     const [,action,id] = input.split(":");
     if (action === "help") return snipeHelp(/^[a-z0-9_]{1,15}$/.test(id??"") ? id : "account");
-    if (["arm","cancel","show"].includes(action)) {
+    if (["arm","cancel","route","show"].includes(action)) {
       if (!/^[a-f0-9-]{36}$/.test(id??"")) return {text:"Use /snipes to open a plan."};
-      const p = action === "show" ? (await api.listSnipes()).find(p=>p.id===id) : await api.decideSnipe(id,action as "arm"|"cancel",actor);
+      const p = action === "show" ? (await api.listSnipes()).find(p=>p.id===id) : await api.decideSnipe(id,action as "arm"|"cancel"|"route",actor);
       return p ? formatSnipe(p) : {text:"Plan not found. Use /snipes."};
     }
     const plans = await api.listSnipes();
@@ -98,10 +103,23 @@ export async function handleSnipeInput(api: API,input: string,actor: string): Pr
 export function createSnipeAlerts(api: Pick<ApiClient,"listSnipes">,store: AlertStore,send: (card:BotCard)=>Promise<void>) {
   let state=store.load();
   return async () => { let sent=0; for(const p of await api.listSnipes()) {
-    if(p.status==="draft")continue;
-    const signature=JSON.stringify([p.status,p.reason,p.tokenAddress,p.fillId]);
+    if(p.status==="draft"&&!p.routeReport)continue;
+    const signature=JSON.stringify([p.status,p.reason,p.tokenAddress,p.fillId,p.routeReport?.observedAt]);
     if(state[p.id]?.signature===signature)continue;
     if(sent++>=5)break;
     await send(formatSnipe(p)); const next={...state,[p.id]:{signature,snapshot:p.createdAt}};store.save(next);state=next;
   }};
+}
+
+function routeSummary(p:SnipePlan):string[] {
+  const r=p.routeReport;
+  if(!r)return [p.routeRequestedAt&&(!p.routeCheckedAt||Date.parse(p.routeRequestedAt)>Date.parse(p.routeCheckedAt))?"\nBuy/sell test: queued. It uses up to 20 RPC requests; /stop pauses collection.":"\nTest buy + sell checks a reviewed CA on a native-ETH Pons V2 curve. Up to 20 RPC requests; no funds spent or plan armed.","Diagnostic only: it does not control the plan's automatic paper entry."];
+  const expired=!r.expiresAt||Date.now()>Date.parse(r.expiresAt);
+  if(r.status!=="passed")return [`\nBuy/sell test: ${clean(r.status)} — ${clean(r.reason.replaceAll("_"," "))}.`,"Review Identity if stale. Other venues, changed bytecode and graduated pools need a separate adapter; a failed test is not proof of a scam.","Diagnostic only: it does not block the existing paper model. Cancel an armed plan if you do not want it to paper-buy."];
+  return [`\nBuy/sell test: ${expired?"historical result — refresh before relying on it":"simulated successfully"} · block ${r.blockNumber}`,
+    `Buy: ${r.spendEth} ETH → ${r.quantity} tokens`,
+    `Buy fees (incl. launch tax): ${r.buyFeeEth} ETH · creator tax: ${r.creatorTaxEth} ETH`,
+    `Immediate simulated sell: ${r.sellReturnEth} ETH · round-trip loss before gas: ${r.roundTripLossEth} ETH`,
+    `Estimated execution gas: ${r.executionGasEstimateEth} ETH (excludes L1 data fees).`,
+    "Tests: once per plan every five minutes. Hypothetical wallet, same simulated block. No future exit guarantee. This test does not change existing paper fills, control automatic paper entry or authorize a live buy."];
 }

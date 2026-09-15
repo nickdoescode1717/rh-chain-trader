@@ -340,6 +340,10 @@ export const xProviderState = pgTable("x_provider_state", {
   id: integer("id").primaryKey(), blockedUntil: timestamp("blocked_until", { withTimezone: true }),
 });
 export const paperSnipes = pgTable("paper_snipes", {
+  routeRequestedAt: timestamp("route_requested_at", { withTimezone: true }),
+  routeAttemptAt: timestamp("route_attempt_at", { withTimezone: true }),
+  routeCheckedAt: timestamp("route_checked_at", { withTimezone: true }),
+  routeReport: jsonb("route_report").$type<import("@rh/core").RouteReport>(),
   monitorAttemptAt: timestamp("monitor_attempt_at", { withTimezone: true }), monitorBlock: integer("monitor_block"),
   id: uuid("id").defaultRandom().primaryKey(), terms: jsonb("terms").$type<import("@rh/core").SnipeTerms>().notNull(),
   createdBy: text("created_by").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

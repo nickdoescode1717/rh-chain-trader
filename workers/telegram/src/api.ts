@@ -101,7 +101,7 @@ export type PaperBalance = {
 export type ApiClient = {
   listSnipes: () => Promise<SnipePlan[]>;
   draftSnipe: (body: Record<string, unknown>) => Promise<SnipePlan>;
-  decideSnipe: (id: string, action: "arm" | "cancel", actor: string) => Promise<SnipePlan>;
+  decideSnipe: (id: string, action: "arm" | "cancel" | "route", actor: string) => Promise<SnipePlan>;
   getCollection: () => Promise<CollectionState>;
   setCollection: (action: string, actor: string) => Promise<CollectionState>;
   getXUsage: () => Promise<XUsage>;
@@ -172,6 +172,7 @@ export type WatchTarget = {
     addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
 };
 export type SnipePlan = { id: string; status: string; reason: string; createdAt: string; armedAt: string | null; expiresAt: string | null;
+  routeRequestedAt?:string|null;routeCheckedAt?:string|null;routeReport?:{status:string;reason:string;observedAt:string;expiresAt?:string;quantity?:string;spendEth?:string;buyFeeEth?:string;creatorTaxEth?:string;sellReturnEth?:string;roundTripLossEth?:string;gasUnits?:string;executionGasEstimateEth?:string;blockNumber?:number}|null;
   tokenAddress: string | null; fillId: string | null; terms: { projectHandle: string; domain: string; deployerAddress: string;
     spendEth: string; maxUnitPriceEth: string; minLiquidityUsd: number; hours: number; mode: "paper"; chainId: 4663 } };
 export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;

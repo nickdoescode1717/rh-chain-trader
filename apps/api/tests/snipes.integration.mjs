@@ -30,6 +30,7 @@ assert.equal((await post('',terms)).body.data.id,p.id);
 await assert.rejects(()=>sql`update paper_snipes set terms=terms || '{"spendEth":"1"}'::jsonb where id=${p.id}`);
 const decision=(id,action,extra={})=>post('/'+id+'/'+action,{actor:'telegram:42',...extra});
 await changeCollection(db,'stop','telegram:42');assert.equal((await decision(p.id,'arm')).status,409);
+assert.equal((await decision(p.id,'route')).body.error,'enable_chain_collection_before_route_check');
 await changeCollection(db,'chainon','telegram:42');assert.equal((await decision(p.id,'arm')).status,200);
 const [armed]=await sql`select armed_at,expires_at from paper_snipes where id=${p.id}`;
 assert.equal(armed.expires_at-armed.armed_at,720*3600000);
@@ -39,6 +40,8 @@ assert.equal((await decision(p2.id,'arm')).body.error,'insufficient_unreserved_p
 assert.equal((await withLedger(tx=>reservedSnipeEth(tx))).toString(),'700000000000000000');
 assert.equal((await ledgerBook()).balance.availableCashEth,'0.3');
 assert.equal((await evaluateSnipe(p.id)).reason,'one_reviewed_mainnet_identity_required');
+assert.equal((await decision(p.id,'route')).body.error,'one_reviewed_mainnet_identity_required');
+assert.equal((await post('/'+p.id+'/route',{actor:'grok'})).status,403);
 const report={version:1,source:{status:'matched',hash:'reviewed',reason:'match'},chain:{status:'matched',reason:'match',blockHash:hash,blockTimestamp:Math.floor(Date.now()/1000)-20}};
 const [claim]=await sql`insert into identity_claims(project_handle,domain,source_url,token_address,deployer_address,creation_tx_hash,report,checked_at,reviewed_at,reviewed_by,reviewed_source_hash)
  values('snipefixture','snipefixture.org','https://snipefixture.org/token',${token},${deployer},${hash},${sql.json(report)},now(),now(),'telegram:42','reviewed') returning id`;
@@ -57,6 +60,11 @@ await refresh({liquidityUsd:100});assert.equal((await evaluateSnipe(p.id)).reaso
 await refresh({observedAt:new Date(Date.now()-100_000).toISOString()});assert.equal((await evaluateSnipe(p.id)).reason,'waiting_for_fresh_tradable_quote');
 await refresh();
 // A late settlement failure must roll back proposal, fill and cash together.
+const route=(await decision(p.id,'route')).body.data;
+assert.ok(route.routeRequestedAt);assert.equal(route.status,'armed');assert.equal(route.routeReport,null);
+assert.equal((await decision(p.id,'route')).body.data.routeRequestedAt,route.routeRequestedAt);
+assert.equal((await sql`select count(*)::int as n from paper_fills`)[0].n,0);
+assert.equal((await withLedger(tx=>reservedSnipeEth(tx))).toString(),'700000000000000000');
 await sql.unsafe("CREATE FUNCTION fail_snipe_fill() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'fixture rollback'; END $$; CREATE TRIGGER fail_snipe_fill BEFORE INSERT ON paper_fills FOR EACH ROW EXECUTE FUNCTION fail_snipe_fill();");
 await assert.rejects(()=>evaluateSnipe(p.id));
 assert.equal((await sql`select count(*)::int as n from paper_fills`)[0].n,0);

@@ -53,6 +53,30 @@ export async function decideSnipe(id: string, action: "arm" | "cancel", actor: s
   });
 }
 
+export async function requestSnipeRoute(id:string,actor:string) {
+  required();
+  return withLedger(async tx=>{
+    const [p]=await tx.select().from(paperSnipes).where(eq(paperSnipes.id,id)).for("update");
+    if(!p||p.createdBy!==actor)throw new LedgerError("snipe_not_found",404);
+    if(!["draft","armed"].includes(p.status))throw new LedgerError("route_requires_open_plan");
+    const [control]=await tx.execute(sql`select paused,chain_enabled from collection_control where id=1 for share`);
+    if(!control||control.paused||!control.chain_enabled)throw new LedgerError("enable_chain_collection_before_route_check");
+    const [project]=await tx.select().from(researchProjects).where(eq(researchProjects.handle,p.terms.projectHandle));
+    if(!project?.enabled||project.domain!==p.terms.domain)throw new LedgerError("project_changed_or_paused");
+    const reviewed=await tx.select().from(identityClaims).where(and(eq(identityClaims.projectHandle,p.terms.projectHandle),isNull(identityClaims.revokedAt),sql`${identityClaims.reviewedAt} is not null`));
+    if(reviewed.length!==1||reviewed[0].deployerAddress!==p.terms.deployerAddress)throw new LedgerError("one_reviewed_mainnet_identity_required");
+    if((await proposalIdentity(tx,{projectHandle:p.terms.projectHandle,tokenAddress:reviewed[0].tokenAddress})).status!=="verified")throw new LedgerError("identity_unverified");
+    if(p.routeRequestedAt&&Date.now()-p.routeRequestedAt.getTime()<300_000)return p;
+    const [usage]=await tx.execute(sql`select coalesce(sum(attempts),0)::int as used from rpc_usage where day=to_char(now() at time zone 'UTC','YYYY-MM-DD')`);
+    if(Number(usage.used)>1980)throw new LedgerError("rpc_daily_limit_reached");
+    const [recent]=await tx.execute(sql`select count(*)::int as n from paper_snipes where route_requested_at > now()-interval '5 minutes'`);
+    if(Number(recent.n)>=3)throw new LedgerError("route_checks_busy");
+    const [saved]=await tx.update(paperSnipes).set({routeRequestedAt:new Date(),routeAttemptAt:null,routeReport:null,tokenAddress:reviewed[0].tokenAddress}).where(eq(paperSnipes.id,id)).returning();
+    await tx.insert(auditLog).values({action:"paper_route_requested",actor,detail:{planId:id,tokenAddress:reviewed[0].tokenAddress}});
+    return saved;
+  });
+}
+
 /** Every gate, reservation and fill commits under the same book lock; collection row locks serialize /stop. */
 export async function evaluateSnipe(id: string) {
   required();

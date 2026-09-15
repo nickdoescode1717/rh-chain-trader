@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { decideSnipe, draftSnipe, listSnipes } from "../snipes.js";
+import { decideSnipe, draftSnipe, listSnipes, requestSnipeRoute } from "../snipes.js";
 import { LedgerError } from "../paper-ledger.js";
 import { telegramDecisionError } from "../telegram-approval.js";
 import { isRecord } from "../validation.js";
@@ -17,6 +17,7 @@ snipeRoutes.post("/:id/:action", async c => {
   const body = await c.req.json().catch(() => null), action = c.req.param("action"), id = c.req.param("id");
   const auth = telegramDecisionError(c.req.header("x-telegram-approval-token"), body?.actor);
   if (auth) return c.json({ error: auth.error }, auth.status);
-  if (!isRecord(body) || Object.keys(body).some(k => k !== "actor") || !/^[a-f0-9-]{36}$/.test(id) || !["arm", "cancel"].includes(action)) return c.json({ error: "invalid_plan_action" }, 400);
+  if (!isRecord(body) || Object.keys(body).some(k => k !== "actor") || !/^[a-f0-9-]{36}$/.test(id) || !["arm", "cancel", "route"].includes(action)) return c.json({ error: "invalid_plan_action" }, 400);
+  if(action==="route")return c.json({data:await requestSnipeRoute(id,body.actor as string),paperOnly:true});
   return c.json({ data: await decideSnipe(id, action as "arm" | "cancel", body.actor as string), paperOnly: true });
 });
