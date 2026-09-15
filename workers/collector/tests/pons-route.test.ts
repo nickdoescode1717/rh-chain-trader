@@ -25,6 +25,7 @@ function fixture(change:string='') {
    if(d.startsWith(manifest.selectors['token()']))return encoded(token);
    if(d.startsWith(manifest.selectors['decimals()']))return encoded(change==='decimals'?6n:18n);
    if(d.startsWith(manifest.selectors['snipeTaxExempt(address)']))return encoded(change==='exempt'?1n:0n);
+   if(d.startsWith(manifest.selectors['currentSnipeTaxBps(address)']))return encoded(change==='launchTax'?9900n:0n);
    if(d.startsWith(manifest.selectors['balanceOf(address)']))return encoded(change==='balance'?1n:0n);
    throw Error('unexpected_call');
   }
@@ -54,7 +55,7 @@ test('native curve adapter binds factory and issuer, simulates sequential buy/ap
  assert.equal(f.seen.filter(x=>x==='eth_simulateV1').length,2);assert.ok(f.seen.length<=20);assert.ok(!f.seen.some(x=>/send|sign/i.test(x)));
 });
 test('unsupported routes, copycats, exempt wallets, stale state and reverted or partial trades never pass',async()=>{
- for(const change of ['chain','factory','curve','deployer','quote','graduated','decimals','exempt','balance','stale','reorg','buy','sell','approve','partial','quantity','malformed']){
+ for(const change of ['chain','factory','curve','deployer','quote','graduated','decimals','exempt','launchTax','balance','stale','reorg','buy','sell','approve','partial','quantity','malformed']){
   const r=await inspectPonsRoute(input,fixture(change).rpc,manifest);assert.notEqual(r.status,'passed',change);
  }
  const expensive=await inspectPonsRoute({...input,maxUnitPriceEth:'0.000001'},fixture().rpc,manifest);assert.notEqual(expensive.status,'passed');

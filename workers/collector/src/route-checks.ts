@@ -32,7 +32,9 @@ export async function pollRouteChecks(db:Db,rpcFactory:()=>RouteRpc=createRouteR
   const after=await collectionState(db);
   if(after.paused||!after.chainEnabled)report=blocked("collection_disabled");
   else if(!await identityCurrent())report=blocked("identity_changed_or_stale");
-  await db.update(paperSnipes).set({routeReport:report,routeCheckedAt:new Date()}).where(and(eq(paperSnipes.id,plan.id),eq(paperSnipes.routeRequestedAt,plan.routeRequestedAt!),eq(paperSnipes.routeAttemptAt,plan.routeAttemptAt!),sql`${paperSnipes.status} in ('draft','armed')`));
+  // A new request clears routeAttemptAt, invalidating the prior lease. Comparing the
+  // request timestamp would lose PostgreSQL microseconds when round-tripped via Date.
+  await db.update(paperSnipes).set({routeReport:report,routeCheckedAt:new Date()}).where(and(eq(paperSnipes.id,plan.id),eq(paperSnipes.routeAttemptAt,plan.routeAttemptAt!),sql`${paperSnipes.status} in ('draft','armed')`));
 }
 export async function runRouteChecks() {
   if(process.env.PAPER_SNIPER_ENABLED!=="true"||!process.env.DATABASE_URL)return;

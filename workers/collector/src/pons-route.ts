@@ -52,6 +52,9 @@ export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddres
     if(await rpc("eth_getCode",[wallet,tag])!=="0x"||BigInt("0x"+(await read(token,"balanceOf(address)",wallet))[0])!==0n)fail("simulation_wallet_not_empty");
     // Never select an exempt wallet to obtain a misleading untaxed launch result.
     if(BigInt("0x"+(await read(curve,"snipeTaxExempt(address)",wallet))[0])!==0n)fail("simulation_wallet_exempt");
+    // eth_simulateV1 advances the timestamp. Never silently quote a lower next-second
+    // launch tax as though it applied to a same-second Arbitrum transaction.
+    if(BigInt("0x"+(await read(curve,"currentSnipeTaxBps(address)",wallet))[0])!==0n)fail("launch_tax_window_active");
     const minimum=(amount*10n**18n+limit-1n)/limit;
     const buy={to:curve,data:data("buy(uint256,uint256,address)",amount,minimum,wallet),value:hex(amount)};
     const balance={to:token,data:data("balanceOf(address)",wallet),value:"0x0"};
@@ -86,7 +89,7 @@ export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddres
     Object.assign(report,{status:"passed",reason:"round_trip_simulated",quantity:decimal(quantity),spendEth:decimal(amount),buyFeeEth:decimal(bought[2]),creatorTaxEth:decimal(bought[3]),sellReturnEth:decimal(net),roundTripLossEth:decimal(amount-net),gasUnits:gas.toString(),executionGasEstimateEth:decimal(gas*gasPrice),buy,approve,sell:{...sell,data:data("sell(uint256,uint256,address)",quantity,net*9950n/10000n||1n,wallet)}});
   } catch(e) {
     const message=e instanceof Error?e.message:"route_check_failed";
-    const known=/^[a-zA-Z0-9_]{1,100}$/.test(message)&&/^(unsupported_|invalid_|wrong_chain|stale_chain_head|factory_identity|curve_identity|simulation_|buy_|round_trip_|trade_)/.test(message);
+    const known=/^[a-zA-Z0-9_]{1,100}$/.test(message)&&/^(unsupported_|invalid_|wrong_chain|stale_chain_head|factory_identity|curve_identity|simulation_|buy_|round_trip_|trade_|launch_tax_)/.test(message);
     report.reason=known?message:"provider_simulation_unavailable";
     report.status=report.reason.startsWith("unsupported_")||report.reason==="provider_simulation_unavailable"?"unsupported":"blocked";
   }

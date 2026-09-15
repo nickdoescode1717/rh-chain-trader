@@ -28,6 +28,13 @@ await changeCollection(db,'chainon','telegram:42');
 await sql`update paper_snipes set route_requested_at=now()-interval '6 minutes' where id=${plan.id}`;
 await pollRouteChecks(db,factory);assert.equal(calls,1);
 assert.equal((await sql`select route_report from paper_snipes where id=${plan.id}`)[0].route_report.reason,'route_request_expired');
+await sql`update paper_snipes set route_requested_at=now(),route_checked_at=null,route_attempt_at=null,route_report=null where id=${plan.id}`;
+await pollRouteChecks(db,()=>async()=>{
+  calls++;await sql`update paper_snipes set route_requested_at=now(),route_attempt_at=null where id=${plan.id}`;return '0x1';
+});
+assert.equal((await sql`select route_report from paper_snipes where id=${plan.id}`)[0].route_report,null);
+const beforeRetry=calls;await pollRouteChecks(db,factory);assert.equal(calls,beforeRetry+1);
+assert.equal((await sql`select route_report from paper_snipes where id=${plan.id}`)[0].route_report.reason,'wrong_chain');
 assert.equal((await sql`select count(*)::int as n from paper_fills`)[0].n,0);
 assert.equal((await sql`select status from paper_snipes where id=${plan.id}`)[0].status,'draft');
 console.log('Route queue integration passed: owner-requested work, no idle/stopped RPC, stale identity rejection, concurrent lease, restart dedup, expiry, and no paper fills or arming.');
