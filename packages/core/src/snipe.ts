@@ -14,7 +14,7 @@ export function snipeTerms(raw: Record<string, unknown>, domain: string): SnipeT
     return decimal(units(v));
   };
   const hours = raw.hours ?? 24;
-  if (typeof hours !== "number" || !Number.isInteger(hours) || hours < 1 || hours > 24) throw new Error("expiry_must_be_1_to_24_hours");
+  if (typeof hours !== "number" || !Number.isInteger(hours) || hours < 1 || hours > 720) throw new Error("expiry_must_be_1_to_720_hours");
   identitySourceUrl(`https://${domain}/`, domain);
   const deployerAddress = identityAddress(raw.deployerAddress);
   if (["0x4e59b44847b379578588920ca78fbf26c0b4956c", PONS_V2_LAUNCH_FACTORY.toLowerCase()].includes(deployerAddress)) throw new Error("shared_factory_is_not_team_deployer");

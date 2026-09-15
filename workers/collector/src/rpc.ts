@@ -104,7 +104,8 @@ export function createRpcClient(rpcUrl?: string): RpcClient {
     if (filter.address !== undefined) params.address = filter.address;
     if (filter.topics !== undefined) params.topics = filter.topics;
     const result = await rpcCall<RpcLog[]>("eth_getLogs", [params]);
-    return Array.isArray(result) ? result : [];
+    if (!Array.isArray(result)) throw new Error("invalid_get_logs_response");
+    return result;
   }
 
   return {

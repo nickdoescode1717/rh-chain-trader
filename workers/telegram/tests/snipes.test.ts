@@ -10,8 +10,30 @@ test("paper snipe command drafts only, then explicit callback arms with owner ac
  await handleSnipeInput(api,`/snipe @project 0.01 0.001 ${p.terms.deployerAddress}`,"telegram:42");
  assert.equal(calls.length,1);assert.equal((calls[0] as any).mode,"paper");assert.equal((calls[0] as any).chainId,4663);
  await handleSnipeInput(api,`snipe:arm:${p.id}`,"telegram:42");assert.deepEqual(calls[1],[p.id,"arm","telegram:42"]);
- const card=formatSnipe(p);assert.match(card.text,/ONE automatic paper buy/);assert.match(card.text,/120 RPC/);
+ const card=formatSnipe(p);assert.match(card.text,/ONE automatic paper buy/);assert.match(card.text,/~5 minutes until expiry/);
  assert.ok(card.text.length<4096);assert.ok(card.reply_markup!.inline_keyboard.flat().every(b=>Buffer.byteLength(b.callback_data)<=64));
+});
+test("snipe guide explains values and unknown launch timing without creating a plan",async()=>{
+ const api={listSnipes:async()=>[],draftSnipe:async()=>{throw new Error('unexpected draft');},decideSnipe:async()=>{throw new Error('unexpected arm');}};
+ for (const input of ['/snipe','/snipe @project','snipe:help:project']) {
+   const card=(await handleSnipeInput(api,input,'telegram:42'))!;
+   assert.match(card.text,/total paper ETH/);assert.match(card.text,/ONE token in ETH/);
+   assert.match(card.text,/no expiry while enabled/);assert.match(card.text,/720 = 30 days/);
+   assert.match(card.text,/DEPLOYER_WALLET/);assert.ok(card.text.length<4096);
+ }
+ const bad=(await handleSnipeInput(api,'/snipe @project 0.01 0.000001 DEPLOYER_WALLET 168','telegram:42'))!;
+ assert.match(bad.text,/Replace DEPLOYER_WALLET/);
+ const list=(await handleSnipeInput(api,'/snipes','telegram:42'))!;assert.match(list.text,/No saved plans/);
+});
+test("arming failures and waiting states tell the owner the next action",async()=>{
+ const p=fixture();p.reason='one_reviewed_mainnet_identity_required';
+ assert.match(formatSnipe(p).text,/Open Identity review/);
+ const api={listSnipes:async()=>[p],draftSnipe:async()=>p,decideSnipe:async()=>{throw new Error('enable_chain_collection_before_arming');}};
+ const card=(await handleSnipeInput(api,`snipe:arm:${p.id}`,'telegram:42'))!;
+ assert.match(card.text,/Send \/chainon/);assert.match(card.text,/tap Arm paper plan/);
+ let body:any;
+ await handleSnipeInput({...api,draftSnipe:async(b:Record<string,unknown>)=>{body=b;return p;}},`/snipe @project 0.01 0.000001 ${p.terms.deployerAddress} 720`,'telegram:42');
+ assert.equal(body.hours,720);assert.equal(body.maxUnitPriceEth,'0.000001');
 });
 test("snipe alerts survive restart and ignore unchanged statuses",async()=>{
  const p=fixture();p.status="armed";let state={},sent=0;

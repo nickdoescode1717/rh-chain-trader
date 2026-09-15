@@ -18,7 +18,7 @@ await sql`insert into research_projects(handle,domain) values('snipefixture','sn
 await sql`insert into collection_control(id) values(1) on conflict do nothing`;
 const app=new Hono();app.route('/paper-snipes',snipeRoutes);
 const token='0x'+'a'.repeat(40),deployer='0x'+'b'.repeat(40),hash='0x'+'c'.repeat(64);
-const terms={projectHandle:'snipefixture',deployerAddress:deployer,spendEth:'0.7',maxUnitPriceEth:'0.002',mode:'paper',chainId:4663,actor:'telegram:42'};
+const terms={projectHandle:'snipefixture',deployerAddress:deployer,spendEth:'0.7',maxUnitPriceEth:'0.002',hours:720,mode:'paper',chainId:4663,actor:'telegram:42'};
 const post=async(path,body,secret=process.env.TELEGRAM_APPROVAL_TOKEN)=>{
  const r=await app.request('/paper-snipes'+path,{method:'POST',headers:{'content-type':'application/json','x-telegram-approval-token':secret},body:JSON.stringify(body)});return {status:r.status,body:await r.json()};};
 assert.equal((await post('',{...terms,actor:'grok'})).status,403);
@@ -31,6 +31,8 @@ await assert.rejects(()=>sql`update paper_snipes set terms=terms || '{"spendEth"
 const decision=(id,action,extra={})=>post('/'+id+'/'+action,{actor:'telegram:42',...extra});
 await changeCollection(db,'stop','telegram:42');assert.equal((await decision(p.id,'arm')).status,409);
 await changeCollection(db,'chainon','telegram:42');assert.equal((await decision(p.id,'arm')).status,200);
+const [armed]=await sql`select armed_at,expires_at from paper_snipes where id=${p.id}`;
+assert.equal(armed.expires_at-armed.armed_at,720*3600000);
 await sql`update paper_snipes set armed_at=now()-interval '30 seconds' where id=${p.id}`;
 const p2=(await post('',{...terms,projectHandle:'snipeother'})).body.data;
 assert.equal((await decision(p2.id,'arm')).body.error,'insufficient_unreserved_paper_cash');
