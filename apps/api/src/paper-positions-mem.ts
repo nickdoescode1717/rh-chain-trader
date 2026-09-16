@@ -20,7 +20,7 @@ export type MemPaperPosition = {
   size: string | null;
   entryPrice: string | null;
   currentPrice: string | null;
-  markSource: "stub_entry" | "oracle_pending" | "manual" | "dexscreener";
+  markSource: "stub_entry" | "oracle_pending" | "manual" | "dexscreener" | "pons_route";
   markObservedAt?: string | null;
   entrySnapshot?: EntrySnapshot | null;
   marketQuote?: MarketQuote | null;
@@ -250,7 +250,8 @@ export function openPaperFromProposal(proposal: {
   if (existing && proposal.register !== false) return existing;
 
   const entryPrice = proposal.entrySnapshot ? String(proposal.entrySnapshot.unitPrice) : entryFromScores(proposal.scores ?? null);
-  const markSource: MemPaperPosition["markSource"] = proposal.entrySnapshot ? "dexscreener" : entryPrice
+  const entryMarket=proposal.entrySnapshot?.quote.source==="dexscreener"?proposal.entrySnapshot.quote as MarketQuote:null;
+  const markSource: MemPaperPosition["markSource"] = entryMarket ? "dexscreener" : proposal.entrySnapshot ? "pons_route" : entryPrice
     ? "stub_entry"
     : "oracle_pending";
   const currentPrice = entryPrice ? entryPrice : null;
@@ -270,7 +271,7 @@ export function openPaperFromProposal(proposal: {
     currentPrice,
     markSource,
     entrySnapshot: proposal.entrySnapshot ?? null,
-    marketQuote: proposal.entrySnapshot?.quote ?? null,
+    marketQuote: entryMarket,
     marketError: null,
     markObservedAt: proposal.entrySnapshot?.quote.observedAt ?? null,
     pnlAbs: null,

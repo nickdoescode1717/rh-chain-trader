@@ -7,9 +7,11 @@ export type MarketQuote = {
   quoteAddress: string; priceEth: number; priceUsd: number; liquidityUsd: number;
   observedAt: string; sourceUpdatedAt: null; url: string;
 };
+export type RouteEntryQuote = { chainId:4663;tokenAddress:string;source:"pons-route-simulation";venue:string;
+  observedAt:string;blockNumber:number;blockHash:string };
 export type EntrySnapshot = {
   [key: string]: unknown;
-  quote: MarketQuote; currency: "ETH" | "USD"; unitPrice: number; cost: number; quantity: number; capturedAt: string;
+  quote: MarketQuote | RouteEntryQuote; currency: "ETH" | "USD"; unitPrice: number; cost: number; quantity: number; capturedAt: string;
 };
 const record = (v: unknown): Record<string, unknown> => v && typeof v === "object" && !Array.isArray(v) ? v as Record<string, unknown> : {};
 const positive = (v: unknown): number | null => {

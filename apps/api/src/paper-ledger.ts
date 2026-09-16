@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLog, marketQuotes, paperAccounts, paperFills, paperLedger, paperSellIntents, paperSnipes, positions, purchaseProposals, tokens, type Db } from "@rh/db";
-import { captureEntry, decimal, PAPER_MODEL, quoteUsable, simulateBuy, simulateSell, units, type EntrySnapshot, type MarketQuote } from "@rh/core";
+import { captureEntry, decimal, PAPER_MODEL, quoteUsable, simulateBuy, simulateSell, snipeReservation, units, type routePaperBuy, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "./db.js";
 import { dbRowToMem, toPositionPayload } from "./paper-positions-mem.js";
 import { identityEnabled, proposalIdentity } from "./identity.js";
@@ -52,10 +52,10 @@ export async function ledgerBuy(id: string, actor: string) {
 }
 export async function reservedSnipeEth(tx: Tx, excluding?: string) {
   const plans = await tx.select().from(paperSnipes).where(and(eq(paperSnipes.status, "armed"), sql`${paperSnipes.expiresAt} > now()`));
-  return plans.filter(p => p.id !== excluding).reduce((sum, p) => sum + units(p.terms.spendEth), 0n);
+  return plans.filter(p => p.id !== excluding).reduce((sum, p) => sum + snipeReservation(p.terms), 0n);
 }
 /** Internal atomic settlement primitive. Automatic callers must validate the immutable plan in this same transaction. */
-export async function settleLedgerBuy(tx: Tx, id: string, actor: string, snipeId?: string) {
+export async function settleLedgerBuy(tx: Tx, id: string, actor: string, snipeId?: string, routeExecution?: ReturnType<typeof routePaperBuy>) {
     const [proposal] = await tx.select().from(purchaseProposals).where(eq(purchaseProposals.id, id)).for("update");
     if (!proposal) throw new LedgerError("not_found", 404);
     const [prior] = await tx.select().from(paperFills).where(eq(paperFills.eventKey, `buy:${id}`));
@@ -66,21 +66,26 @@ export async function settleLedgerBuy(tx: Tx, id: string, actor: string, snipeId
     if (proposal.status !== (snipeId ? "pending_snipe" : "pending_nick") || (proposal.expiresAt && proposal.expiresAt.getTime() <= Date.now())) throw new LedgerError("not_pending_or_expired");
     const identity = identityEnabled() ? await proposalIdentity(tx, proposal) : null;
     if (identity && identity.status !== "verified") throw new LedgerError(`identity_${identity.status}:${identity.reasons.join(",")}`);
-    const { currency, cost } = currencySize(proposal.size), q = await currentQuote(tx, proposal.tokenAddress);
+    const { currency, cost: spend } = currencySize(proposal.size);
+    if(routeExecution&&(!snipeId||currency!=="ETH"||routeExecution.route.tokenAddress!==proposal.tokenAddress||routeExecution.route.spendEth!==spend))throw new LedgerError("route_settlement_mismatch");
+    const q=routeExecution?null:await currentQuote(tx,proposal.tokenAddress);
+    const model = routeExecution ?? simulateBuy(spend, String(currency === "ETH" ? q!.priceEth : q!.priceUsd));
+    const cost=model.cost;
     const [account] = await tx.select().from(paperAccounts).where(eq(paperAccounts.currency, currency));
     const reserved = currency === "ETH" ? await reservedSnipeEth(tx, snipeId) : 0n;
     if (units(account.cash) - reserved < units(cost)) throw new LedgerError("insufficient_paper_cash");
-    const model = simulateBuy(cost, String(currency === "ETH" ? q.priceEth : q.priceUsd));
-    const snapshot = captureEntry(q, proposal.tokenAddress!, proposal.size);
+    const snapshot:EntrySnapshot=routeExecution?{quote:{chainId:4663,tokenAddress:proposal.tokenAddress!,source:"pons-route-simulation",venue:routeExecution.route.venue,
+      observedAt:routeExecution.route.observedAt,blockNumber:routeExecution.route.blockNumber!,blockHash:routeExecution.route.blockHash!},currency:"ETH",
+      unitPrice:Number(model.executionPrice),cost:Number(cost),quantity:Number(model.quantity),capturedAt:routeExecution.route.observedAt}:captureEntry(q, proposal.tokenAddress!, proposal.size);
     snapshot.identity = identity;
     // Immutable execution snapshot contains modeled costs as well as reference quote.
-    snapshot.unitPrice = Number(model.executionPrice); snapshot.quantity = Number(model.quantity); snapshot.execution = model;
+    snapshot.unitPrice = Number(model.executionPrice); snapshot.quantity = Number(model.quantity); snapshot.cost=Number(cost); snapshot.execution = model;
     const [position] = await tx.insert(positions).values({ tokenAddress: proposal.tokenAddress, size: proposal.size,
-      entryPrice: model.executionPrice, currentPrice: String(currency === "ETH" ? q.priceEth : q.priceUsd), entrySnapshot: snapshot,
-      markSource: "dexscreener", markObservedAt: new Date(q.observedAt), openedAt: new Date(), status: "simulated_open",
-      proposalId: id, channel: "telegram", note: "Paper fill; explicit modeled fee/slippage; no live transaction",
+      entryPrice: model.executionPrice, currentPrice: q?String(currency === "ETH" ? q.priceEth : q.priceUsd):null, entrySnapshot: snapshot,
+      markSource: routeExecution?"pons_route":"dexscreener", markObservedAt: q?new Date(q.observedAt):null, openedAt: new Date(), status: "simulated_open",
+      proposalId: id, channel: "telegram", note: routeExecution ? "Paper route quantity/fees; full approved gas allowance charged; exits use reference model; no live transaction" : "Paper fill; explicit modeled fee/slippage; no live transaction",
       ledgerManaged: true, remainingQuantity: model.quantity, remainingCost: cost }).returning();
-    const [fill] = await tx.insert(paperFills).values({ eventKey: `buy:${id}`, positionId: position.id, currency, side: "buy", execution: { ...model, identity }, quote: q, actor }).returning();
+    const [fill] = await tx.insert(paperFills).values({ eventKey: `buy:${id}`, positionId: position.id, currency, side: "buy", execution: { ...model, identity }, quote: snapshot.quote, actor }).returning();
     await tx.update(paperAccounts).set({ cash: decimal(units(account.cash) - units(cost)) }).where(eq(paperAccounts.currency, currency));
     await tx.insert(paperLedger).values({ eventKey: `buy:${id}`, currency, positionId: position.id, kind: "buy", delta: model.cashDelta });
     const [approved] = await tx.update(purchaseProposals).set({ status: "approved", approvedAt: new Date(), note: "PAPER_LEDGER_SETTLED" }).where(eq(purchaseProposals.id, id)).returning();
@@ -204,6 +209,6 @@ export async function ledgerBook() {
       valuationComplete: open.length === eth.length && eth.every(p => p.currentValue != null),
       positions: open.map(p => ({ ...p, mark: p.currentPrice })), buyWallets: [],
       totals: { cashEth: cash.cash, positionsEth: String(positionsEth), unrealizedEth: String(eth.reduce((sum,p) => sum + (p.unrealizedPnl ?? 0),0)), equityEth: String(Number(cash.cash) + positionsEth) },
-      note: "Durable paper ledger. Unpriced positions use remaining cost. Currency accounts are separate. Gas, taxes and liquidity impact are not simulated." } };
+      note: "Durable paper ledger. Unpriced positions use remaining cost. New route snipes include simulated buy fees/taxes and a fixed gas allowance. Other entries and all exits use the reference model." } };
   });
 }

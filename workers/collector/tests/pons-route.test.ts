@@ -50,7 +50,7 @@ function fixture(change:string='') {
 }
 test('native curve adapter binds factory and issuer, simulates sequential buy/approve/sell, records fees and bounds calldata',async()=>{
  const f=fixture(),r=await inspectPonsRoute(input,f.rpc,manifest);assert.equal(r.status,'passed',r.reason);
- assert.equal(r.quantity,'100');assert.equal(r.buyFeeEth,'0.0001');assert.equal(r.creatorTaxEth,'0.0002');assert.equal(r.sellReturnEth,'0.0094');assert.equal(r.roundTripLossEth,'0.0006');assert.equal(r.gasUnits,'300000');
+ assert.equal(r.quantity,'100');assert.equal(r.buyFeeEth,'0.0001');assert.equal(r.creatorTaxEth,'0.0002');assert.equal(r.sellReturnEth,'0.0094');assert.equal(r.roundTripLossEth,'0.0006');assert.equal(r.gasUnits,'300000');assert.equal(r.buyGasEstimateEth,'0.0001');assert.equal(r.executionGasEstimateEth,'0.0003');
  assert.equal(r.approve?.to,token);assert.equal(r.sell?.to,curve);assert.equal(r.buy?.value,'0x'+units('0.01').toString(16));
  assert.equal(f.seen.filter(x=>x==='eth_simulateV1').length,2);assert.ok(f.seen.length<=20);assert.ok(!f.seen.some(x=>/send|sign/i.test(x)));
 });

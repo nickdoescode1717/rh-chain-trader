@@ -46,7 +46,7 @@ export type Position = {
   unrealizedPnl?: number | null;
   pnlCurrency?: string | null;
   currentValue?: number | null;
-  entrySnapshot?: { currency: "ETH" | "USD"; unitPrice: number; quantity: number; capturedAt: string; quote: { observedAt: string; source: string } } | null;
+  entrySnapshot?: { currency: "ETH" | "USD"; unitPrice: number; quantity: number; capturedAt: string; quote: { observedAt: string; source: string; tokenAddress?:string }; execution?: PaperExecution } | null;
   marketQuote?: { chainId: number; tokenAddress: string; priceUsd: number; priceEth: number; observedAt: string; source: string; url: string } | null;
   marketError?: string | null;
   markObservedAt?: string | null;
@@ -134,7 +134,8 @@ export type ApiClient = {
 };
 
 export type PaperExecution = { mode: "paper"; side: "buy" | "sell"; quantity: string; fee: string; cashDelta: string;
-  executionPrice: string; cost: string; realizedPnl: string; remainingQuantity?: string; remainingCost?: string };
+  executionPrice: string; cost: string; realizedPnl: string; remainingQuantity?: string; remainingCost?: string;
+  gasAllowance?:string;buyGasEstimate?:string;model?:{version?:string;gasAccounting?:string} };
 export type IdentityVerdict = { status:string; reasons?:string[]; sourceUrl?:string|null; checkedAt?:string|null; scope?:string };
 export type IdentityClaim = { id:string; projectHandle:string; domain:string; sourceUrl:string; tokenAddress:string; deployerAddress:string; creationTxHash:string;
   reviewedAt:string|null; revokedAt:string|null; checkedAt:string|null; report:{source:{status:string;reason:string;excerpt:string;xLinked:boolean};chain:{status:string;reason:string;confirmations?:number;method?:string}}|null };
@@ -172,9 +173,9 @@ export type WatchTarget = {
     addresses: { address: string; sourceUrl: string }[]; gaps: string[] } | null;
 };
 export type SnipePlan = { id: string; status: string; reason: string; createdAt: string; armedAt: string | null; expiresAt: string | null;
-  routeRequestedAt?:string|null;routeCheckedAt?:string|null;routeReport?:{status:string;reason:string;observedAt:string;expiresAt?:string;quantity?:string;spendEth?:string;buyFeeEth?:string;creatorTaxEth?:string;sellReturnEth?:string;roundTripLossEth?:string;gasUnits?:string;executionGasEstimateEth?:string;blockNumber?:number}|null;
-  tokenAddress: string | null; fillId: string | null; terms: { projectHandle: string; domain: string; deployerAddress: string;
-    spendEth: string; maxUnitPriceEth: string; minLiquidityUsd: number; hours: number; mode: "paper"; chainId: 4663 } };
+  routeRequestedAt?:string|null;routeCheckedAt?:string|null;routeReport?:{status:string;reason:string;observedAt:string;expiresAt?:string;quantity?:string;spendEth?:string;buyFeeEth?:string;creatorTaxEth?:string;sellReturnEth?:string;roundTripLossEth?:string;gasUnits?:string;buyGasEstimateEth?:string;executionGasEstimateEth?:string;blockNumber?:number}|null;
+  tokenAddress: string | null; fillId: string | null; terms: { version?:1|2; gasAllowanceEth?:string; projectHandle: string; domain: string; deployerAddress: string;
+    spendEth: string; maxUnitPriceEth: string; minLiquidityUsd?: number; maxRoundTripLossBps?:number; hours: number; mode: "paper"; chainId: 4663 } };
 export type XUsage = { dailyLimitUsd: number; reservedTodayUsd: number; reserved24hUsd: number; remainingUsd: number;
   requests24h: number; blockedUntil: string | null; resetsAt: string; accounting: string };
 export type CollectionState = { paused: boolean; chainEnabled: boolean; rpcBlockedUntil: string | null;

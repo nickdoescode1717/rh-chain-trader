@@ -98,3 +98,7 @@ See [PAPER_SNIPER.md](PAPER_SNIPER.md). Telegram can draft and explicitly arm im
 
 See [ROUTE_CHECKS.md](ROUTE_CHECKS.md). A Telegram-requested native-ETH Pons V2 curve adapter pins verified runtime fingerprints, quotes and simulates sequential buy/approve/sell calls, checks actual outputs/fees and estimates execution gas. One mainnet round trip passed without broadcast; an ERC-20 quote route was correctly rejected. This advances route verification and execution realism, but results are diagnostic: they do not replace or gate the current reference-price paper model. Route-derived paper settlement, other quote assets/graduated venues, actual signing and automated exits remain outstanding.
 
+## Route-derived paper settlement (2026-09-16)
+
+New Telegram-approved policy-v2 plans require a fresh Pons V2 native-ETH simulation before entry. DEX indexing is not required. The result is bound to the immutable limits and reviewed identity; exact simulated quantity/fees/tax drive the fill, while price, immediate round-trip-loss and buy-gas limits apply. Spend plus a fixed approved gas allowance is reserved and charged. Automatic route retries are bounded, and there is no fixed-model fallback. Old approvals remain version 1. Other venues, L1 fee measurement, route-based exits and live signing remain outstanding.
+

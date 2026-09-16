@@ -3,7 +3,7 @@ import type { FormattedMessage } from "./format.js";
 import { amount } from "./portfolio.js";
 const button = (text: string, callback_data: string) => ({ text, callback_data });
 const back = [[button("Positions", "portfolio:positions:0"), button("Balance", "portfolio:balance")], [button("Trade history", "paper:history:0")]];
-export const modelNote = "Paper model: 0.3% fee + 0.5% adverse slippage per fill. Gas, token taxes and liquidity impact excluded.";
+export const modelNote = "Paper exits and standard entries: 0.3% fee + 0.5% adverse slippage; gas, token taxes and liquidity impact excluded. Policy-v2 route entries record simulated buy fees/tax and charge their full approved gas allowance.";
 export function formatSellPreview(p: SellPreview): FormattedMessage {
   return { text: ["🧾 CONFIRM PAPER SELL", "", `${p.percent}% of remaining tokens`, `Quantity  ${amount(p.preview.quantity)}`,
     `Estimated net proceeds  ${amount(p.preview.cashDelta)} ${p.currency}`, `Modeled fee  ${amount(p.preview.fee)} ${p.currency}`,
@@ -25,6 +25,7 @@ export function formatHistory(fills: PaperFill[], requestedPage = 0): FormattedM
     ...fills.slice(page * 5, page * 5 + 5).flatMap(f => [
       `${f.side.toUpperCase()} · ${f.createdAt.slice(0,16).replace("T", " ")} UTC`,
       f.quote.tokenAddress, `Quantity  ${amount(f.execution.quantity)}`, `Cash ${amount(f.execution.cashDelta, true)} ${f.currency}`,
+      ...(f.execution.model?.version === "pons-route-paper-v1" ? [`Route entry · fee/tax ${amount(f.execution.fee)} ETH · gas allowance ${amount(f.execution.gasAllowance)} ETH`] : []),
       ...(f.side === "sell" ? [`Realized P&L  ${amount(f.execution.realizedPnl, true)} ${f.currency}`] : []), ""]),
     ...(fills.length ? [] : ["No ledger fills yet. Older holdings remain visible in Positions."]), modelNote];
   return { text: text.join("\n"), reply_markup: { inline_keyboard: [[

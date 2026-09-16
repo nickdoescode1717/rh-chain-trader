@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createApiClient, type SellPreview, type PaperFill } from "../src/api.js";
-import { formatSellPreview, formatSellReceipt, handlePaperCallback } from "../src/paper-trading.js";
+import { formatHistory, formatSellPreview, formatSellReceipt, handlePaperCallback } from "../src/paper-trading.js";
 const id = "11111111-1111-4111-8111-111111111111";
 const preview: SellPreview = { id, positionId: id, tokenCA: `0x${"a".repeat(40)}`, percent: 25, currency: "ETH", minimumNet: "0.09", expiresAt: new Date().toISOString(),
   preview: { mode: "paper", side: "sell", quantity: "100", fee: "0.001", cashDelta: "0.1", executionPrice: "0.001", cost: "0.05", realizedPnl: "0.05" } };
@@ -29,4 +29,8 @@ test("sell API credentials go only to decision routes; actor and percent are pre
     assert.deepEqual(JSON.parse(calls[0].init!.body as string), { percent: 50, actor: "telegram:42" });
     assert.equal((calls[2].init!.headers as Record<string,string>)["x-telegram-approval-token"], undefined);
   } finally { globalThis.fetch = original; }
+});
+test("history distinguishes route-priced entries and their charged allowance",()=>{
+ const fill:PaperFill={id,positionId:id,currency:"ETH",side:"buy",createdAt:new Date().toISOString(),quote:{tokenAddress:preview.tokenCA},execution:{...preview.preview,side:"buy",gasAllowance:"0.0001",buyGasEstimate:"0.00001",model:{version:"pons-route-paper-v1",gasAccounting:"full_approved_allowance"}}};
+ const card=formatHistory([fill]);assert.match(card.text,/Route entry/);assert.match(card.text,/gas allowance 0.0001 ETH/);assert.match(card.text,/Policy-v2 route entries/);
 });

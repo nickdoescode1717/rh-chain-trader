@@ -1,6 +1,6 @@
 import {and,eq,isNull,sql} from "drizzle-orm";
 import {createDb,collectionState,paperSnipes,identityClaims,researchProjects,type Db} from "@rh/db";
-import {evaluateIdentity,type RouteReport,type IdentityReport} from "@rh/core";
+import {evaluateIdentity,routeBinding,type RouteReport,type IdentityReport} from "@rh/core";
 import {inspectPonsRoute,SIMULATION_WALLET,type RouteRpc} from "./pons-route.js";
 import {createRouteRpc} from "./route-rpc.js";
 import {waitForCollection} from "./collection-control.js";
@@ -22,16 +22,19 @@ export async function pollRouteChecks(db:Db,rpcFactory:()=>RouteRpc=createRouteR
     const [project]=await db.select().from(researchProjects).where(eq(researchProjects.handle,plan.terms.projectHandle));
     const claims=await db.select().from(identityClaims).where(and(eq(identityClaims.projectHandle,plan.terms.projectHandle),isNull(identityClaims.revokedAt)));
     const reviewed=claims.filter(c=>c.reviewedAt);
-    return project?.enabled&&project.domain===plan.terms.domain&&reviewed.length===1&&reviewed[0].tokenAddress===input.tokenAddress&&reviewed[0].deployerAddress===input.deployerAddress
+    const valid=project?.enabled&&project.domain===plan.terms.domain&&reviewed.length===1&&reviewed[0].tokenAddress===input.tokenAddress&&reviewed[0].deployerAddress===input.deployerAddress
       &&evaluateIdentity({projectHandle:project.handle,tokenAddress:input.tokenAddress,domain:project.domain,enabled:project.enabled,claims:claims.map(c=>({...c,report:c.report as IdentityReport|null}))}).status==="verified";
+    return valid ? routeBinding(plan.id,plan.terms,reviewed[0]) : null;
   };
+  const binding=await identityCurrent();
   let report:RouteReport;
   if(Date.now()-plan.routeRequestedAt!.getTime()>300_000)report=blocked("route_request_expired");
-  else if(!await identityCurrent())report=blocked("identity_changed_or_stale");
+  else if(!binding)report=blocked("identity_changed_or_stale");
   else report=await inspectPonsRoute(input,rpcFactory());
   const after=await collectionState(db);
   if(after.paused||!after.chainEnabled)report=blocked("collection_disabled");
-  else if(!await identityCurrent())report=blocked("identity_changed_or_stale");
+  else if(!binding||await identityCurrent()!==binding)report=blocked("identity_changed_or_stale");
+  if(binding){report.binding=binding;report.requestedAt=plan.routeRequestedAt!.toISOString();}
   // A new request clears routeAttemptAt, invalidating the prior lease. Comparing the
   // request timestamp would lose PostgreSQL microseconds when round-tripped via Date.
   await db.update(paperSnipes).set({routeReport:report,routeCheckedAt:new Date()}).where(and(eq(paperSnipes.id,plan.id),eq(paperSnipes.routeAttemptAt,plan.routeAttemptAt!),sql`${paperSnipes.status} in ('draft','armed')`));

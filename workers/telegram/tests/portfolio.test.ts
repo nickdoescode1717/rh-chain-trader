@@ -28,6 +28,10 @@ test("market P&L requires a fresh successful observation and displays its record
   assert.equal(positionMetrics(p).pnl, null);
   assert.match(formatPositionsList([p]).text, /stale/);
 });
+test("route-priced positions disclose fee, allowance and exit-model limits",()=>{
+ const p=position({markSource:"dexscreener",entrySnapshot:{currency:"ETH",quantity:100,unitPrice:0.001,capturedAt:new Date().toISOString(),quote:{observedAt:new Date().toISOString(),source:"dexscreener"},execution:{mode:"paper",side:"buy",quantity:"100",fee:"0.003",cashDelta:"-0.1001",executionPrice:"0.001",cost:"0.1001",realizedPnl:"0",gasAllowance:"0.0001",buyGasEstimate:"0.00001",model:{version:"pons-route-paper-v1"}}}});
+ const card=formatPositionDetail(p);assert.match(card.text,/Pons V2 route simulation/);assert.match(card.text,/Charged gas allowance  0.0001 ETH/);assert.match(card.text,/L1 fee excluded/);assert.match(card.text,/Exits still use/);
+});
 test("missing, placeholder and untrusted prices never appear as measured zero P&L", () => {
   for (const changes of [{ entryPrice: null }, { currentPrice: null }, { markSource: "stub_entry", currentPrice: "2" }, { markSource: "oracle_pending" }, { markSource: undefined }, { currentPrice: "Infinity" }, { size: "eth:-2" }]) {
     const p = position(changes);

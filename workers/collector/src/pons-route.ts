@@ -22,7 +22,7 @@ export function matchesArtifact(code:unknown,artifact:Manifest["artifacts"][stri
 /** Only static, exact-mainnet native-ETH curve trades. No user-supplied routing/calldata. */
 export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddress:string;budgetEth:string;maxUnitPriceEth:string},rpc:RouteRpc,manifest:Manifest=PONS_MANIFEST):Promise<RouteReport> {
   const report:RouteReport={version:1,venue:"pons-v2-native-curve",status:"failed",reason:"route_check_failed",observedAt:new Date().toISOString(),chainId:4663,
-    ...input,simulationWallet:SIMULATION_WALLET,limitations:["Hypothetical unfunded wallet; no transaction broadcast.","One simulated block; future execution and sellability can change.","Gas estimate excludes Robinhood L1 data fees and future gas-price changes.","Curve only: graduation, ERC-20 quote assets and other venues are unsupported.","Assessment only; existing paper fills still use the reference-price model."]};
+    ...input,simulationWallet:SIMULATION_WALLET,limitations:["Hypothetical unfunded wallet; no transaction broadcast.","One simulated block; future execution and sellability can change.","Gas estimate excludes Robinhood L1 data fees and future gas-price changes.","Curve only: graduation, ERC-20 quote assets and other venues are unsupported.","Only a fresh identity-bound result can settle a separately armed policy-v2 paper plan."]};
   const factory=PONS_V2_LAUNCH_FACTORY.toLowerCase(),wallet=SIMULATION_WALLET;
   const data=(signature:string,...args:(string|bigint)[])=>{const selector=manifest.selectors[signature];if(!/^0x[0-9a-f]{8}$/.test(selector??""))throw Error("unsupported_abi");return selector+args.map(word).join("");};
   try {
@@ -83,6 +83,7 @@ export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddres
     if(bought[0]!==amount||bought[1]!==quantity||sold[0]!==quantity||sold[1]!==net||net<=0n||net>amount||bought[2]+bought[3]>=amount)fail("trade_amount_mismatch_or_partial_fill");
     const gas=[0,2,3].reduce((total,i)=>total+uint(round[i].gasUsed),0n);
     const gasPrice=uint(await rpc("eth_gasPrice",[]));
+    report.buyGasEstimateEth=decimal(uint(round[0].gasUsed)*gasPrice);
     const canonical=await rpc("eth_getBlockByNumber",[tag,false]);
     if(canonical?.hash?.toLowerCase()!==report.blockHash)fail("simulation_block_reorg");
     if(Date.now()>Date.parse(report.expiresAt!))fail("simulation_expired");

@@ -6,6 +6,8 @@ export type RouteReport = {
   curveAddress?:string; blockNumber?:number; blockHash?:string; blockTimestamp?:number;
   expiresAt?:string; quantity?:string; spendEth?:string; buyFeeEth?:string; creatorTaxEth?:string;
   sellReturnEth?:string; roundTripLossEth?:string; gasUnits?:string; executionGasEstimateEth?:string;
+  buyGasEstimateEth?:string;
+  binding?:string; requestedAt?:string;
   buy?:{to:string;data:string;value:string}; approve?:{to:string;data:string;value:string}; sell?:{to:string;data:string;value:string};
   limitations:string[];
 };

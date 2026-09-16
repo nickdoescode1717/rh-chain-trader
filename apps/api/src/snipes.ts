@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { auditLog, identityClaims, marketQuotes, paperAccounts, paperSnipes, positions, purchaseProposals, researchProjects } from "@rh/db";
-import { decimal, quoteUsable, simulateBuy, snipeTerms, units, type IdentityReport, type MarketQuote } from "@rh/core";
+import { quoteUsable, simulateBuy, snipeTerms, snipeReservation, routeBinding, routePaperBuy, units, type IdentityReport, type MarketQuote } from "@rh/core";
 import { getDb } from "./db.js";
 import { identityEnabled, proposalIdentity } from "./identity.js";
 import { ledgerEnabled, LedgerError, reservedSnipeEth, settleLedgerBuy, withLedger } from "./paper-ledger.js";
@@ -45,9 +45,10 @@ export async function decideSnipe(id: string, action: "arm" | "cancel", actor: s
     if (armed.length >= 5) throw new LedgerError("maximum_five_armed_plans");
     if (armed.some(p => p.terms.projectHandle === plan.terms.projectHandle)) throw new LedgerError("project_already_has_armed_plan");
     const [account] = await tx.select().from(paperAccounts).where(eq(paperAccounts.currency, "ETH"));
-    if (units(account.cash) - await reservedSnipeEth(tx) < units(plan.terms.spendEth)) throw new LedgerError("insufficient_unreserved_paper_cash");
+    if (units(account.cash) - await reservedSnipeEth(tx) < snipeReservation(plan.terms)) throw new LedgerError("insufficient_unreserved_paper_cash");
     const armedAt = new Date(), expiresAt = new Date(armedAt.getTime() + plan.terms.hours * 3_600_000);
-    const [saved] = await tx.update(paperSnipes).set({ status: "armed", armedAt, expiresAt, reason: "waiting_for_verified_mainnet_launch" }).where(eq(paperSnipes.id, id)).returning();
+    const [saved] = await tx.update(paperSnipes).set({ status: "armed", armedAt, expiresAt, reason: "waiting_for_verified_mainnet_launch",
+      ...(plan.terms.version===2?{routeRequestedAt:null,routeAttemptAt:null,routeCheckedAt:null,routeReport:null}:{}) }).where(eq(paperSnipes.id, id)).returning();
     await tx.insert(auditLog).values({ action: "paper_snipe_armed", actor, detail: { planId: id, terms: plan.terms, expiresAt: expiresAt.toISOString() } });
     return saved;
   });
@@ -93,10 +94,10 @@ export async function evaluateSnipe(id: string) {
     const [usage] = await tx.execute(sql`select coalesce(sum(attempts),0)::int as used from rpc_usage where day=to_char(now() at time zone 'UTC','YYYY-MM-DD')`);
     if (Number(usage.used) >= 2000) return save("rpc_daily_limit_reached");
     const t = p.terms;
-    if (t.mode !== "paper" || t.chainId !== 4663) return save("unsupported_execution_network", "cancelled");
+    if (t.mode !== "paper" || t.chainId !== 4663 || ![1,2].includes(t.version)) return save("unsupported_execution_network", "cancelled");
     const [project] = await tx.select().from(researchProjects).where(eq(researchProjects.handle, t.projectHandle)).for("share");
     if (!project?.enabled || project.domain !== t.domain) return save("project_changed_or_paused", "cancelled");
-    const claims = await tx.select().from(identityClaims).where(and(eq(identityClaims.projectHandle, t.projectHandle), isNull(identityClaims.revokedAt)));
+    const claims = await tx.select().from(identityClaims).where(and(eq(identityClaims.projectHandle, t.projectHandle), isNull(identityClaims.revokedAt))).for("share");
     const reviewed = claims.filter(c => c.reviewedAt);
     if (reviewed.length !== 1) return save("one_reviewed_mainnet_identity_required");
     const claim = reviewed[0], token = claim.tokenAddress;
@@ -109,15 +110,34 @@ export async function evaluateSnipe(id: string) {
     const [held] = await tx.select().from(positions).where(and(eq(positions.tokenAddress, token), sql`${positions.status} <> 'closed'`)).limit(1);
     const [bought] = await tx.select().from(paperSnipes).where(and(eq(paperSnipes.tokenAddress, token), eq(paperSnipes.status, "filled"))).limit(1);
     if (held || bought) return save("token_already_bought", "cancelled", token);
-    const [cached] = await tx.select().from(marketQuotes).where(eq(marketQuotes.tokenAddress, token));
-    const q = cached?.quote as MarketQuote | null;
-    if (!cached || cached.lastError || !quoteUsable(q, token, Date.now(), 90_000)) return save("waiting_for_fresh_tradable_quote", "armed", token);
-    if (!Number.isFinite(q!.liquidityUsd) || q!.liquidityUsd < t.minLiquidityUsd) return save("insufficient_liquidity", "armed", token);
-    if (units(simulateBuy(t.spendEth, String(q!.priceEth)).executionPrice) > units(t.maxUnitPriceEth)) return save("price_above_approved_limit", "armed", token);
+    let routeExecution: ReturnType<typeof routePaperBuy> | undefined;
+    if(t.version===2){
+      try { routeExecution=routePaperBuy(t,p.routeReport,{token,binding:routeBinding(id,t,claim),requestedAt:p.routeRequestedAt,
+        armedAt:p.armedAt!,born,deploymentBlock:(claim.report as IdentityReport|null)?.chain.blockNumber}); }
+      catch(e){
+        const reason=e instanceof Error?e.message:"route_simulation_required";
+        // A five-minute cooldown bounds automatic retries and shares the manual queue budget.
+        if(!p.routeRequestedAt||Date.now()-p.routeRequestedAt.getTime()>=300_000){
+          if(Number(usage.used)>1980)return save("rpc_daily_limit_reached","armed",token);
+          const [recent]=await tx.execute(sql`select count(*)::int as n from paper_snipes where route_requested_at > now()-interval '5 minutes'`);
+          if(Number(recent.n)>=3)return save("route_checks_busy","armed",token);
+          await tx.update(paperSnipes).set({routeRequestedAt:new Date(),routeAttemptAt:null,routeReport:null,tokenAddress:token}).where(eq(paperSnipes.id,id));
+          await tx.insert(auditLog).values({action:"paper_route_auto_requested",actor:p.createdBy,detail:{planId:id,tokenAddress:token}});
+          return save("waiting_for_route_simulation","armed",token);
+        }
+        return save(p.routeReport?.status!=="passed"?"waiting_for_route_simulation":reason,"armed",token);
+      }
+    }else{
+      const [cached] = await tx.select().from(marketQuotes).where(eq(marketQuotes.tokenAddress, token));
+      const q = cached?.quote as MarketQuote | null;
+      if (!cached || cached.lastError || !quoteUsable(q, token, Date.now(), 90_000)) return save("waiting_for_fresh_tradable_quote", "armed", token);
+      if (!Number.isFinite(q!.liquidityUsd) || q!.liquidityUsd < t.minLiquidityUsd) return save("insufficient_liquidity", "armed", token);
+      if (units(simulateBuy(t.spendEth, String(q!.priceEth)).executionPrice) > units(t.maxUnitPriceEth)) return save("price_above_approved_limit", "armed", token);
+    }
     const [proposal] = await tx.insert(purchaseProposals).values({ projectHandle: t.projectHandle, tokenAddress: token,
       size: `eth:${t.spendEth}`, slippageBps: t.slippageBps, status: "pending_snipe", channel: "telegram", expiresAt: p.expiresAt,
       rationale: "Single paper entry under immutable Telegram-approved launch plan", sources: [{ claimId: claim.id, planId: id }], note: "PAPER_SNIPE_PENDING_SETTLEMENT" }).returning();
-    const result = await settleLedgerBuy(tx, proposal.id, p.createdBy, id);
+    const result = await settleLedgerBuy(tx, proposal.id, p.createdBy, id, routeExecution);
     const [filled] = await tx.update(paperSnipes).set({ status: "filled", reason: "paper_fill_recorded", tokenAddress: token,
       proposalId: proposal.id, fillId: result.fill.id, checkedAt: new Date() }).where(eq(paperSnipes.id, id)).returning();
     await tx.insert(auditLog).values({ action: "paper_snipe_filled", actor: p.createdBy, detail: { planId: id, fillId: result.fill.id, terms: t } });

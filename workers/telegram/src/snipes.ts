@@ -9,17 +9,18 @@ export function snipeHelp(handle = "account"): BotCard {
   return {text:["PAPER SNIPE PLAN · setup guide", "",
     `Don't know the launch date or deployer yet? Start with /launch @${handle}. That watch has no expiry while enabled. A snipe plan is a separate, time-limited paper-buy approval.`,
     "", "When you know the intended mainnet deployer, send:",
-    `/snipe @${handle} ETH_BUDGET MAX_PRICE_ETH DEPLOYER [HOURS]`,
+    `/snipe @${handle} ETH_BUDGET MAX_PRICE_ETH DEPLOYER [HOURS] [GAS_ETH]`,
     "", "Put these values in this exact order:",
     `1. @${handle} — the project's X handle, already added through /launch or /watch.`,
-    "2. ETH_BUDGET — total paper ETH to spend once, e.g. 0.01.",
-    "3. MAX_PRICE_ETH — most you'll pay for ONE token in ETH, including modeled slippage, e.g. 0.000001. This is not a total budget or market cap.",
+    "2. ETH_BUDGET — total paper ETH sent to the curve once, including buy fees/tax, e.g. 0.01. Gas allowance is added separately.",
+    "3. MAX_PRICE_ETH — most you'll pay for ONE token in ETH, including buy fees/tax but excluding gas, e.g. 0.000001. This is not a total budget or market cap.",
     "4. DEPLOYER — the intended mainnet deployer wallet: 0x plus 40 hexadecimal characters. Do not use the token CA, a testnet contract, an owner guess or a shared factory.",
     "5. HOURS — optional whole number: 24 = one day, 168 = one week, 720 = 30 days. Default 24; allowed 1–720. It starts when you arm.",
+    "6. GAS_ETH — optional fixed paper gas allowance, default 0.0001 ETH. Supply HOURS first. The FULL allowance is reserved and charged on a fill; a higher buy execution-gas estimate blocks entry. This is an allowance, not measured total gas.",
     "", "Example layout (replace DEPLOYER_WALLET; amounts are illustrative):",
     `/snipe @${handle} 0.01 0.000001 DEPLOYER_WALLET 168`,
     "", "Then: review the draft → enable monitoring with /chainon if needed → tap Arm paper plan. /chainon uses your provider budget; it does not arm a plan.",
-    `When a candidate CA appears, review /identity @${handle}. The bot waits for the exact official mainnet identity and price/liquidity checks before ONE paper buy. Deployment alone is not enough.`,
+    `When a candidate CA appears, review /identity @${handle}. The bot waits for exact identity and a passing Pons V2 native-ETH buy/sell simulation before ONE paper buy. Tests use up to 20 RPC requests, at most once per five minutes per plan.`,
     "", "/snipes — plans and what each is waiting for. /stop cancels armed plans and stops collection. No real funds are spent.",
   ].join("\n"),reply_markup:{inline_keyboard:[[button("Saved plans","snipe:list:0")]]}};
 }
@@ -53,6 +54,12 @@ const reasons: Record<string,string> = {
   enable_chain_collection_before_route_check:"Send /chainon if you want to enable paid chain checks, then tap Test buy + sell. This does not arm the plan.",
   route_requires_open_plan:"Open or create a draft/armed plan in /snipes before requesting a route test.",
   route_checks_busy:"Three route tests were requested recently. Wait five minutes before requesting another.",
+  waiting_for_route_simulation:"Waiting for a passing buy/sell simulation. See the test result below. Automatic retries are limited to once per five minutes within the entry window.",
+  route_gas_above_allowance:"Estimated buy execution gas exceeds your allowance. Cancel and create a new plan with a reviewed GAS_ETH value if appropriate.",
+  route_round_trip_loss_above_limit:"The immediate simulated resale loses more than the approved 10% before gas. No paper entry; the bot will retry within the entry window.",
+  route_precedes_deployment:"The simulated block is older than the reviewed deployment. Waiting for a new check.",
+  route_simulation_stale:"The simulation expired. Waiting for the next permitted check; no fallback paper buy.",
+  route_binding_mismatch:"The simulation no longer matches the approved plan or reviewed identity. Waiting for a new check.",
 };
 function explain(reason: string) {
   return reasons[reason] ?? (reason.startsWith("identity_") ? "Identity checks have not passed. Open Identity review for missing, stale or conflicting evidence." : clean(reason.replaceAll("_"," ")));
@@ -61,13 +68,15 @@ export function formatSnipe(p: SnipePlan): BotCard {
   const t = p.terms;
   return {text:[`PAPER SNIPE · @${clean(t.projectHandle)}`,`Status: ${clean(p.status.toUpperCase())}`,`Next: ${explain(p.reason)}`,
     `Network: Robinhood MAINNET 4663 · simulated only`, `Project domain: ${clean(t.domain)}`, `Expected deployer: ${clean(t.deployerAddress)}`,
-    `Reserve / spend once: ${t.spendEth} ETH`, `Maximum modeled price: ${t.maxUnitPriceEth} ETH/token`, `Minimum quoted liquidity: $${t.minLiquidityUsd}`,
+    ...(t.version===2 ? [`Curve spend once: ${t.spendEth} ETH + fixed gas allowance: ${t.gasAllowanceEth} ETH`,"Both amounts are reserved; the full gas allowance is charged to paper cost on a fill."] : [`Reserve / spend once: ${t.spendEth} ETH`]),
+    `Maximum modeled price: ${t.maxUnitPriceEth} ETH/token (excluding gas)`,
+    ...(t.version===2?[`Maximum immediate round-trip loss: ${(t.maxRoundTripLossBps??1000)/100}% before gas`]:[`Minimum quoted liquidity: $${t.minLiquidityUsd}`]),
     p.expiresAt ? `Expires: ${p.expiresAt}` : `Valid for ${t.hours}h after arming; confirm this draft within 10 minutes.`,
     ...(p.tokenAddress ? [`Mainnet CA: ${p.tokenAddress}`] : ["CA: wait for independently verified mainnet deployment"]),
     ...routeSummary(p),
     "\nArming reserves paper funds and authorizes ONE automatic paper buy after every gate passes. Launch must occur after arming; entry window is 10 minutes after deployment.",
     "Pons V2 checks: ~10s for the first 10 minutes, then ~5 minutes until expiry. Due deployers share requests. Backlogs, outages and the shared RPC cap can delay detection. No first-block guarantee.",
-    "Requires fresh owner-reviewed identity and market data. Quote/model only: 0.3% fee + 0.5% slippage; gas, taxes and sellability are not simulated. No automated exits or real transaction.",
+    t.version===2 ? "Policy v2: fresh identity + passing native-ETH Pons V2 simulation required. Records simulated quantity/fees/tax; enforces price, round-trip-loss and buy-gas limits. DEX indexing is not required for entry. P&L stays unavailable until market data arrives. L1 fees are unmeasured. Exits still use the reference-price paper model; no automated exit or live transaction." : "Legacy policy v1: fresh identity and market data; 0.3% fee + 0.5% slippage. Gas, taxes and sellability are not simulated. No automated exits or real transaction.",
     "\n/stop, /chainoff and /run cancel armed plans. Resuming collection never re-arms them."].join("\n"), reply_markup:{inline_keyboard:[
       ...(p.status === "draft" ? [[button("Arm paper plan",`snipe:arm:${p.id}`)]] : []),
       ...(["draft","armed"].includes(p.status) ? [[button("Cancel plan",`snipe:cancel:${p.id}`)]] : []),
@@ -81,11 +90,11 @@ export async function handleSnipeInput(api: API,input: string,actor: string): Pr
   if (!input.startsWith("snipe:") && !["/snipe","/snipes"].includes(base)) return null;
   try {
     if (base === "/snipe") {
-      if (args.length < 4 || args.length > 5) return snipeHelp((args[0] ?? "account").replace(/^@/,""));
+      if (args.length < 4 || args.length > 6) return snipeHelp((args[0] ?? "account").replace(/^@/,""));
       const projectHandle=args[0].replace(/^@/,"").toLowerCase();
       if (!/^[a-z0-9_]{1,15}$/.test(projectHandle)) return snipeHelp();
       if (!/^0x[0-9a-f]{40}$/i.test(args[3]) || /^0x0{40}$/i.test(args[3])) return {text:"DEPLOYER must be the actual mainnet deployer wallet: 0x plus 40 hexadecimal characters. Replace DEPLOYER_WALLET in the example. If you don't know it yet, use /launch @"+projectHandle+" and review its DD. A token CA or factory address is not a substitute."};
-      return formatSnipe(await api.draftSnipe({projectHandle,spendEth:args[1],maxUnitPriceEth:args[2],deployerAddress:args[3],hours:Number(args[4]??24),mode:"paper",chainId:4663,actor}));
+      return formatSnipe(await api.draftSnipe({projectHandle,spendEth:args[1],maxUnitPriceEth:args[2],deployerAddress:args[3],hours:Number(args[4]??24),...(args[5]?{gasAllowanceEth:args[5]}:{}),mode:"paper",chainId:4663,actor}));
     }
     const [,action,id] = input.split(":");
     if (action === "help") return snipeHelp(/^[a-z0-9_]{1,15}$/.test(id??"") ? id : "account");
@@ -113,13 +122,16 @@ export function createSnipeAlerts(api: Pick<ApiClient,"listSnipes">,store: Alert
 
 function routeSummary(p:SnipePlan):string[] {
   const r=p.routeReport;
-  if(!r)return [p.routeRequestedAt&&(!p.routeCheckedAt||Date.parse(p.routeRequestedAt)>Date.parse(p.routeCheckedAt))?"\nBuy/sell test: queued. It uses up to 20 RPC requests; /stop pauses collection.":"\nTest buy + sell checks a reviewed CA on a native-ETH Pons V2 curve. Up to 20 RPC requests; no funds spent or plan armed.","Diagnostic only: it does not control the plan's automatic paper entry."];
+  const gate=p.terms.version===2;
+  if(!r)return [p.routeRequestedAt&&(!p.routeCheckedAt||Date.parse(p.routeRequestedAt)>Date.parse(p.routeCheckedAt))?"\nBuy/sell test: queued. It uses up to 20 RPC requests; /stop pauses collection.":"\nTest buy + sell checks a reviewed CA on a native-ETH Pons V2 curve. Up to 20 RPC requests; no funds spent or plan armed.",gate?"A fresh passing result is mandatory for automatic paper entry. Armed plans request it automatically when identity and market gates pass.":"Diagnostic only: it does not control the plan's automatic paper entry."];
   const expired=!r.expiresAt||Date.now()>Date.parse(r.expiresAt);
-  if(r.status!=="passed")return [`\nBuy/sell test: ${clean(r.status)} — ${clean(r.reason.replaceAll("_"," "))}.`,"Review Identity if stale. Other venues, changed bytecode and graduated pools need a separate adapter; a failed test is not proof of a scam.","Diagnostic only: it does not block the existing paper model. Cancel an armed plan if you do not want it to paper-buy."];
+  if(r.status!=="passed")return [`\nBuy/sell test: ${clean(r.status)} — ${clean(r.reason.replaceAll("_"," "))}.`,"Review Identity if stale. Other venues, changed bytecode and graduated pools need a separate adapter; a failed test is not proof of a scam.",gate?"Paper entry blocked until a fresh passing result meets the approved limits.":"Diagnostic only: it does not block the existing paper model. Cancel an armed plan if you do not want it to paper-buy."];
   return [`\nBuy/sell test: ${expired?"historical result — refresh before relying on it":"simulated successfully"} · block ${r.blockNumber}`,
     `Buy: ${r.spendEth} ETH → ${r.quantity} tokens`,
     `Buy fees (incl. launch tax): ${r.buyFeeEth} ETH · creator tax: ${r.creatorTaxEth} ETH`,
     `Immediate simulated sell: ${r.sellReturnEth} ETH · round-trip loss before gas: ${r.roundTripLossEth} ETH`,
-    `Estimated execution gas: ${r.executionGasEstimateEth} ETH (excludes L1 data fees).`,
-    "Tests: once per plan every five minutes. Hypothetical wallet, same simulated block. No future exit guarantee. This test does not change existing paper fills, control automatic paper entry or authorize a live buy."];
+    `Estimated buy execution gas: ${r.buyGasEstimateEth??"unavailable"} ETH · approved allowance: ${p.terms.gasAllowanceEth??"legacy plan"} ETH`,
+    `Estimated round-trip execution gas: ${r.executionGasEstimateEth} ETH (excludes L1 data fees).`,
+    "Tests: once per plan every five minutes. Hypothetical wallet, same simulated block. No future exit guarantee.",
+    gate?"Fresh matching results can trigger ONE paper fill on an armed plan. Draft tests never arm a plan. No live buy.":"This test does not change existing paper fills, control automatic paper entry or authorize a live buy."];
 }

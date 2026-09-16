@@ -25,8 +25,11 @@ assert.equal((await post('',{...terms,actor:'grok'})).status,403);
 assert.equal((await post('',terms,'wrong')).status,403);
 assert.equal((await post('',{...terms,chainId:46630})).status,400);
 assert.equal((await post('',{...terms,mode:'live'})).status,400);
-const p=(await post('',terms)).body.data;assert.ok(p.id);
-assert.equal((await post('',terms)).body.data.id,p.id);
+const drafted=(await post('',terms)).body.data;assert.ok(drafted.id);assert.equal(drafted.terms.version,2);
+assert.equal((await post('',terms)).body.data.id,drafted.id);
+// Existing v1 approvals remain on their original execution model; never rewrite their terms.
+const {gasAllowanceEth,executionPolicy,...common}=drafted.terms;
+const [p]=await sql`insert into paper_snipes(terms,created_by) values(${sql.json({...common,version:1,feeBps:30})},'telegram:42') returning id`;
 await assert.rejects(()=>sql`update paper_snipes set terms=terms || '{"spendEth":"1"}'::jsonb where id=${p.id}`);
 const decision=(id,action,extra={})=>post('/'+id+'/'+action,{actor:'telegram:42',...extra});
 await changeCollection(db,'stop','telegram:42');assert.equal((await decision(p.id,'arm')).status,409);
