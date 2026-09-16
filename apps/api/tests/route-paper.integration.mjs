@@ -60,13 +60,13 @@ assert.equal(Number(book.holdings[0].remainingCost),0.7001);assert.equal(Number(
 assert.equal(book.holdings[0].valuationStatus,'market_unavailable');assert.equal(book.holdings[0].currentValue,null);
 const restart=spawnSync(process.execPath,['tests/route-paper.integration.mjs','restart',plan.id],{encoding:'utf8'});assert.equal(restart.status,0,restart.stdout+restart.stderr);
 assert.equal((await sql`select count(*)::int n from paper_fills`)[0].n,1);
-// Reference-model exits still allocate ALL entry cost (including the gas allowance).
-const q={chainId:4663,tokenAddress:token,source:'dexscreener',pairId:hash,quoteAddress:'0x'+'0'.repeat(40),priceEth:0.001,priceUsd:2,liquidityUsd:10000,observedAt:new Date().toISOString(),sourceUpdatedAt:null,url:'https://dexscreener.com/robinhood/fixture'};
-await sql`insert into market_quotes(token_address,quote,last_attempt_at) values(${token},${sql.json(q)},now())`;
-const intent=await previewSell(fill.position_id,50,actor);await confirmSell(intent.id,actor);
-book=await ledgerBook();assert.equal(Number(book.holdings[0].remainingCost),0.35005);assert.equal(Number(book.holdings[0].remainingQuantity),200);
+// Route-priced positions never fall back to a DEX reference exit. A durable
+// exact-reserve quote must be produced by the collector before confirmation.
+const intent=await previewSell(fill.position_id,50,actor);assert.equal(intent.queued,true);assert.equal(intent.status,'route_quoting');
+const waiting=await confirmSell(intent.id,actor);assert.equal(waiting.queued,true);assert.equal(waiting.phase,'quote');
+book=await ledgerBook();assert.equal(Number(book.holdings[0].remainingCost),0.7001);assert.equal(Number(book.holdings[0].remainingQuantity),400);
 const p2=await draftSnipe({projectHandle:'routepaper',deployerAddress:deployer,spendEth:'0.1',maxUnitPriceEth:'0.002',mode:'paper',chainId:4663},actor);
 await decideSnipe(p2.id,'arm',actor);await changeCollection(db,'stop',actor);
 assert.equal((await evaluateSnipe(p2.id)).status,'cancelled');assert.equal((await ledgerBook()).balance.reservedSnipeEth,'0');
-console.log('Route paper integration passed: gas reservations, automatic queue/dedup, no fallback, exact identity binding, stale/price/gas limits, rollback, concurrent/restart exactly-once, partial-exit cost and stop.');
+console.log('Route paper integration passed: gas reservations, automatic queue/dedup, no entry or exit fallback, exact identity binding, stale/price/gas limits, rollback, concurrent/restart exactly-once and stop.');
 await sql.end();process.exit(0);
