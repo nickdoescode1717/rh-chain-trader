@@ -95,6 +95,8 @@ export async function evaluateSnipe(id: string) {
     if (Number(usage.used) >= 2000) return save("rpc_daily_limit_reached");
     const t = p.terms;
     if (t.mode !== "paper" || t.chainId !== 4663 || ![1,2].includes(t.version)) return save("unsupported_execution_network", "cancelled");
+    if(t.version===1&&(t.feeBps!==30||t.minLiquidityUsd!==1000))return save("unsupported_execution_policy","cancelled");
+    if(t.version===2&&(t.executionPolicy!=="pons-route-paper-v1"||t.maxRoundTripLossBps!==1000))return save("unsupported_execution_policy","cancelled");
     const [project] = await tx.select().from(researchProjects).where(eq(researchProjects.handle, t.projectHandle)).for("share");
     if (!project?.enabled || project.domain !== t.domain) return save("project_changed_or_paused", "cancelled");
     const claims = await tx.select().from(identityClaims).where(and(eq(identityClaims.projectHandle, t.projectHandle), isNull(identityClaims.revokedAt))).for("share");
