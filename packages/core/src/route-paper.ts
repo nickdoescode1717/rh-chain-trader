@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { decimal, units, SCALE } from "./paper-execution.js";
 import { snipeReservation, type SnipeTerms } from "./snipe.js";
-import type { RouteReport } from "./route.js";
+import type { RouteReport, RouteSellReport } from "./route.js";
 
 /** Binds a collector result to the immutable plan and the exact reviewed deployment. */
 export function routeBinding(id: string, t: SnipeTerms, c: {
@@ -51,7 +51,32 @@ export function routePaperBuy(t: SnipeTerms, r: RouteReport | null, context: {
   if (price > units(t.maxUnitPriceEth)) fail("price_above_approved_limit");
   const cost = snipeReservation(t);
   return { mode: "paper" as const, side: "buy" as const,
-    model: { version: "pons-route-paper-v1", taxesIncluded: true, gasIncluded: true, gasAccounting: "full_approved_allowance", exits: "paper-v1-reference" },
+    model: { version: "pons-route-paper-v1", taxesIncluded: true, gasIncluded: true, gasAccounting: "full_approved_allowance", exits: "pons-route-paper-sell-v1" },
     quantity: decimal(quantity), referencePrice: decimal(price), executionPrice: decimal(price), fee: decimal(fee + tax),
     gasAllowance: decimal(allowance), buyGasEstimate: decimal(gas), cost: decimal(cost), cashDelta: decimal(-cost), realizedPnl: "0", route: report };
+}
+
+/** Settles an exit from an exact reserve quote. Gas remains outside paper P&L until a signed-wallet adapter exists. */
+export function routePaperSell(remainingQuantity:string,remainingCost:string,percent:number,r:RouteSellReport|null,context:{
+  token:string;deployer:string;requestedAt:Date|null
+},now=Date.now()) {
+  const fail=(reason:string):never=>{throw Error(reason);};
+  if(![25,50,100].includes(percent))fail("invalid_sell_percent");
+  if(!r||r.status!=="passed")fail("route_sell_quote_required");
+  const report=r!;
+  if(report.version!==1||report.venue!=="pons-v2-native-curve"||report.chainId!==4663||report.tokenAddress!==context.token||
+    report.deployerAddress!==context.deployer||report.requestedAt!==context.requestedAt?.toISOString())fail("route_sell_binding_mismatch");
+  const observed=Date.parse(report.observedAt),expires=Date.parse(report.expiresAt??""),block=(report.blockTimestamp??0)*1000;
+  if(!context.requestedAt||![observed,expires,block].every(Number.isFinite)||!block||observed<context.requestedAt.getTime()||
+    observed>now||now>=expires||expires>block+60_000||now-observed>60_000||block>now+5000||
+    !Number.isSafeInteger(report.blockNumber)||!/^0x[0-9a-f]{64}$/.test(report.blockHash??""))fail("route_sell_quote_stale");
+  const amount=(v:unknown)=>{if(typeof v!=="string"||!/^\d{1,60}(?:\.\d{1,18})?$/.test(v))fail("route_sell_amount_invalid");return units(v as string);};
+  const remaining=units(remainingQuantity),cost=units(remainingCost),quantity=remaining*BigInt(percent)/100n;
+  const quoted=amount(report.quantity),gross=amount(report.grossQuoteEth),fee=amount(report.baseFeeEth),tax=amount(report.creatorTaxEth),net=amount(report.netQuoteEth);
+  if(remaining<=0n||cost<0n||quantity<=0n||quoted!==quantity||gross<=0n||fee+tax>=gross||net!==gross-fee-tax||net<=0n)fail("route_sell_amount_invalid");
+  const allocated=quantity===remaining?cost:cost*quantity/remaining;
+  return {mode:"paper" as const,side:"sell" as const,quantity:decimal(quantity),referencePrice:decimal(gross*SCALE/quantity),
+    executionPrice:decimal(net*SCALE/quantity),fee:decimal(fee+tax),cashDelta:decimal(net),cost:decimal(allocated),
+    realizedPnl:decimal(net-allocated),remainingQuantity:decimal(remaining-quantity),remainingCost:decimal(cost-allocated),
+    model:{version:"pons-route-paper-sell-v1",taxesIncluded:true,reserveImpactIncluded:true,gasIncluded:false},route:report};
 }

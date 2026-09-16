@@ -249,6 +249,10 @@ export const paperSellIntents = pgTable("paper_sell_intents", {
   preview: jsonb("preview").$type<Record<string, unknown>>().notNull(),
   status: text("status").notNull().default("pending"), fillId: uuid("fill_id").references(() => paperFills.id),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  routeRequestedAt: timestamp("route_requested_at", { withTimezone: true }),
+  routeAttemptAt: timestamp("route_attempt_at", { withTimezone: true }),
+  routeCheckedAt: timestamp("route_checked_at", { withTimezone: true }),
+  routeReport: jsonb("route_report").$type<import("@rh/core").RouteSellReport>(),
 });
 
 /** X discovery is evidence collection only; these records never authorize orders. */

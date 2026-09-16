@@ -116,8 +116,9 @@ export type ApiClient = {
   reviewIdentity: (id:string,actor:string) => Promise<{review:{id:string;expiresAt:string};claim:IdentityClaim}>;
   confirmIdentity: (id:string,actor:string) => Promise<{confirmed:boolean;verdict?:IdentityVerdict}>;
   revokeIdentity: (id:string,actor:string) => Promise<{revoked:boolean;projectHandle:string}>;
-  previewPaperSell: (id: string, percent: number, actor: string) => Promise<SellPreview>;
-  confirmPaperSell: (id: string, actor: string) => Promise<{ fill: PaperFill; replayed: boolean }>;
+  previewPaperSell: (id: string, percent: number, actor: string) => Promise<SellAction>;
+  getPaperSell: (id:string,actor:string)=>Promise<SellAction>;
+  confirmPaperSell: (id: string, actor: string) => Promise<SellAction>;
   cancelPaperSell: (id: string, actor: string) => Promise<{ cancelled: boolean }>;
   listPaperFills: () => Promise<PaperFill[]>;
   baseUrl: string;
@@ -143,7 +144,9 @@ export type IdentityProject = {project:{handle:string;domain:string;enabled:bool
 export type PaperFill = { id: string; positionId: string; currency: string; side: "buy" | "sell";
   execution: PaperExecution; createdAt: string; quote: { tokenAddress: string } };
 export type SellPreview = { id: string; positionId: string; tokenCA: string; percent: number; currency: string;
-  minimumNet: string; expiresAt: string; preview: PaperExecution };
+  minimumNet: string; expiresAt: string; preview: PaperExecution; queued?:false;phase?:"preview" };
+export type SellQueued={queued:true;phase:"quote"|"execution";id?:string;intent?:{id:string};tokenCA?:string};
+export type SellAction=SellPreview|SellQueued|{fill:PaperFill;replayed:boolean};
 
 export type ResearchReport = {
   researchedAt: string;
@@ -255,7 +258,8 @@ export function createApiClient(baseUrl: string, approvalToken = process.env.TEL
     reviewIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/review`,{actor},true),
     confirmIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/confirm`,{actor},true),
     revokeIdentity: (id,actor)=>identity(`${encodeURIComponent(id)}/revoke`,{actor},true),
-    previewPaperSell: (id, percent, actor) => paper<SellPreview>(`${encodeURIComponent(id)}/preview`, { percent, actor }),
+    previewPaperSell: (id, percent, actor) => paper<SellAction>(`${encodeURIComponent(id)}/preview`, { percent, actor }),
+    getPaperSell:(id,actor)=>paper<SellAction>(`${encodeURIComponent(id)}/status`,{actor}),
     confirmPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/confirm`, { actor }),
     cancelPaperSell: (id, actor) => paper(`${encodeURIComponent(id)}/cancel`, { actor }),
     listPaperFills: () => paper<PaperFill[]>("history"),

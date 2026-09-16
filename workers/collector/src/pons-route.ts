@@ -1,5 +1,5 @@
 import {createHash} from "node:crypto";
-import {decimal,units,PONS_V2_LAUNCH_FACTORY,type RouteReport} from "@rh/core";
+import {decimal,units,PONS_V2_LAUNCH_FACTORY,type RouteReport,type RouteSellReport} from "@rh/core";
 import {PONS_MANIFEST} from "./pons-manifest.js";
 
 export type RouteRpc = (method:string,params:unknown[])=>Promise<any>;
@@ -44,7 +44,7 @@ export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddres
     if(BigInt("0x"+launched[10])!==0n)fail("unsupported_graduated_route");
     const curve=addrWord(launched[1]);report.curveAddress=curve;
     for(const [target,name] of [[curve,"PonsV2BondingCurve"],[token,"PonsV2LauncherToken"]]){
-      if(!matchesArtifact(await rpc("eth_getCode",[target,tag]),manifest.artifacts[name]))fail("unsupported_"+name+"_bytecode");
+      const artifact=manifest.artifacts[name!];if(!artifact||!matchesArtifact(await rpc("eth_getCode",[target!,tag]),artifact))fail("unsupported_"+name+"_bytecode");
     }
     const read=async(to:string,signature:string,...args:(string|bigint)[])=>{const result=words(await rpc("eth_call",[{to,data:data(signature,...args)},tag]));if(result.length!==1)fail("invalid_abi_response");return result as [string];};
     if(addrWord((await read(curve,"factory()"))[0])!==factory||addrWord((await read(curve,"token()"))[0])!==token)fail("curve_identity_mismatch");
@@ -91,6 +91,67 @@ export async function inspectPonsRoute(input:{tokenAddress:string;deployerAddres
   } catch(e) {
     const message=e instanceof Error?e.message:"route_check_failed";
     const known=/^[a-zA-Z0-9_]{1,100}$/.test(message)&&/^(unsupported_|invalid_|wrong_chain|stale_chain_head|factory_identity|curve_identity|simulation_|buy_|round_trip_|trade_|launch_tax_)/.test(message);
+    report.reason=known?message:"provider_simulation_unavailable";
+    report.status=report.reason.startsWith("unsupported_")||report.reason==="provider_simulation_unavailable"?"unsupported":"blocked";
+  }
+  return report;
+}
+
+/**
+ * Prices a sell from pinned, verified Pons V2 source and current canonical
+ * reserves. This is deliberately read-only: it never overrides token balances,
+ * impersonates a holder, signs, or submits a transaction.
+ */
+export async function inspectPonsSellRoute(input:{tokenAddress:string;deployerAddress:string;quantity:string},rpc:RouteRpc,manifest:Manifest=PONS_MANIFEST):Promise<RouteSellReport>{
+  const report:RouteSellReport={version:1,venue:"pons-v2-native-curve",status:"failed",reason:"route_sell_check_failed",observedAt:new Date().toISOString(),
+    chainId:4663,...input,simulationWallet:SIMULATION_WALLET,limitations:["Read-only exact curve math at one canonical block; no transaction broadcast.",
+      "Future reserves and sellability can change before execution.","Exit gas and Robinhood L1 data fees are excluded from paper P&L.",
+      "Curve only: graduated launches, ERC-20 quote assets and other venues are unsupported."]};
+  const factory=PONS_V2_LAUNCH_FACTORY.toLowerCase();
+  const data=(signature:string,...args:(string|bigint)[])=>{const selector=manifest.selectors[signature];if(!/^0x[0-9a-f]{8}$/.test(selector??""))throw Error("unsupported_abi");return selector+args.map(word).join("");};
+  try{
+    const token=address(input.tokenAddress),deployer=address(input.deployerAddress);
+    if(!/^\d+(\.\d{1,18})?$/.test(input.quantity))fail("invalid_sell_quantity");
+    const quantity=units(input.quantity);if(quantity<=0n)fail("invalid_sell_quantity");
+    if(uint(await rpc("eth_chainId",[]))!==4663n)fail("wrong_chain");
+    const block=await rpc("eth_getBlockByNumber",["latest",false]);
+    if(!/^0x[0-9a-f]{64}$/i.test(block?.hash??""))fail("invalid_block");
+    const number=uint(block.number),timestamp=uint(block.timestamp),tag=hex(number);
+    if(number>BigInt(Number.MAX_SAFE_INTEGER)||timestamp>BigInt(Number.MAX_SAFE_INTEGER)||Date.now()/1000-Number(timestamp)>90||Number(timestamp)>Date.now()/1000+5)fail("stale_chain_head");
+    Object.assign(report,{blockNumber:Number(number),blockHash:block.hash.toLowerCase(),blockTimestamp:Number(timestamp),expiresAt:new Date((Number(timestamp)+60)*1000).toISOString()});
+    const factoryCode=await rpc("eth_getCode",[factory,tag]);
+    if(typeof factoryCode!=="string"||!/^0x(?:[0-9a-f]{2})+$/i.test(factoryCode)||digest(factoryCode)!==manifest.factorySha256)fail("unsupported_factory_bytecode");
+    const launched=words(await rpc("eth_call",[{to:factory,data:data("getLaunchedToken(address)",token)},tag]));
+    if(launched.length!==15||BigInt("0x"+launched[14])!==1n||addrWord(launched[0])!==token||addrWord(launched[2])!==deployer)fail("factory_identity_mismatch");
+    if(BigInt("0x"+launched[4])!==0n)fail("unsupported_quote_asset");
+    if(BigInt("0x"+launched[10])!==0n)fail("unsupported_graduated_route");
+    const curve=addrWord(launched[1]);report.curveAddress=curve;
+    for(const [target,name] of [[curve,"PonsV2BondingCurve"],[token,"PonsV2LauncherToken"]]){
+      const artifact=manifest.artifacts[name!];if(!artifact||!matchesArtifact(await rpc("eth_getCode",[target!,tag]),artifact))fail("unsupported_"+name+"_bytecode");
+    }
+    const call=async(to:string,signature:string,...args:(string|bigint)[])=>words(await rpc("eth_call",[{to,data:data(signature,...args)},tag]));
+    const one=async(to:string,signature:string,...args:(string|bigint)[])=>{const result=await call(to,signature,...args);if(result.length!==1)fail("invalid_abi_response");return BigInt("0x"+result[0]);};
+    const oneAddress=async(to:string,signature:string)=>{const result=await call(to,signature);if(result.length!==1)fail("invalid_abi_response");return addrWord(result[0]!);};
+    if(await oneAddress(curve,"factory()")!==factory||await oneAddress(curve,"token()")!==token)fail("curve_identity_mismatch");
+    if(await oneAddress(curve,"pairToken()")!=="0x0000000000000000000000000000000000000000")fail("unsupported_quote_asset");
+    if(await one(curve,"graduated()")!==0n||await one(curve,"readyToGraduate()")!==0n)fail("unsupported_graduated_route");
+    if(await one(token,"decimals()")!==18n)fail("unsupported_token_decimals");
+    const reserves=await call(curve,"getReserves()");if(reserves.length!==2)fail("invalid_abi_response");
+    const quoteReserve=BigInt("0x"+reserves[0]),tokenReserve=BigInt("0x"+reserves[1]);
+    const feeBps=await one(curve,"feeBps()"),creatorTaxBps=await one(curve,"creatorTaxBps()");
+    if(feeBps>1000n||creatorTaxBps>1000n||feeBps+creatorTaxBps>2000n||quoteReserve<=0n||tokenReserve<=0n)fail("invalid_curve_state");
+    if(await one(token,"balanceOf(address)",curve)!==tokenReserve)fail("curve_token_balance_mismatch");
+    const gross=quantity*quoteReserve/(tokenReserve+quantity);if(gross<=0n)fail("sell_amount_below_precision");
+    const fee=gross*feeBps/10000n,tax=gross*creatorTaxBps/10000n,net=gross-fee-tax;
+    if(net<=0n||await one(curve,"realQuoteReserve()")<net)fail("insufficient_real_quote_reserve");
+    const canonical=await rpc("eth_getBlockByNumber",[tag,false]);
+    if(canonical?.hash?.toLowerCase()!==report.blockHash)fail("simulation_block_reorg");
+    if(Date.now()>Date.parse(report.expiresAt!))fail("simulation_expired");
+    Object.assign(report,{status:"passed",reason:"exact_curve_reserve_quote",quantity:decimal(quantity),tokenReserve:decimal(tokenReserve),quoteReserveEth:decimal(quoteReserve),
+      grossQuoteEth:decimal(gross),baseFeeEth:decimal(fee),creatorTaxEth:decimal(tax),netQuoteEth:decimal(net),feeBps:Number(feeBps),creatorTaxBps:Number(creatorTaxBps)});
+  }catch(e){
+    const message=e instanceof Error?e.message:"route_sell_check_failed";
+    const known=/^[a-zA-Z0-9_]{1,100}$/.test(message)&&/^(unsupported_|invalid_|wrong_chain|stale_chain_head|factory_identity|curve_identity|curve_token|sell_|insufficient_|simulation_)/.test(message);
     report.reason=known?message:"provider_simulation_unavailable";
     report.status=report.reason.startsWith("unsupported_")||report.reason==="provider_simulation_unavailable"?"unsupported":"blocked";
   }

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { cancelSell, confirmSell, fillHistory, ledgerEnabled, LedgerError, previewSell } from "../paper-ledger.js";
+import { cancelSell, confirmSell, fillHistory, ledgerEnabled, LedgerError, previewSell, sellIntent } from "../paper-ledger.js";
 import { telegramDecisionError } from "../telegram-approval.js";
 import { isRecord } from "../validation.js";
 export const paperSellRoutes = new Hono();
@@ -20,7 +20,8 @@ paperSellRoutes.post("/:id/:action", async c => {
   try {
     const actor = body.actor as string;
     const data = action === "preview" ? await previewSell(id, body.percent as number, actor)
-      : action === "confirm" ? await confirmSell(id, actor) : action === "cancel" ? await cancelSell(id, actor) : null;
+      : action === "confirm" ? await confirmSell(id, actor) : action === "cancel" ? await cancelSell(id, actor)
+      : action === "status" ? await sellIntent(id,actor) : null;
     if (!data) return c.json({ error: "unknown_action" }, 404);
     return c.json({ data, paperOnly: true, signed: false, txSubmitted: false });
   } catch (e) { return c.json({ error: e instanceof LedgerError ? e.message : "paper_settlement_unavailable" }, e instanceof LedgerError ? e.status : 503); }

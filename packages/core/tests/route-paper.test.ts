@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { routePaperBuy, routeBinding } from "../src/route-paper.js";
+import { routePaperBuy, routePaperSell, routeBinding } from "../src/route-paper.js";
 import { snipeTerms, snipeReservation } from "../src/snipe.js";
-import type { RouteReport } from "../src/route.js";
+import type { RouteReport, RouteSellReport } from "../src/route.js";
 const now=Date.now(),token="0x"+"a".repeat(40),deployer="0x"+"b".repeat(40);
 const terms=snipeTerms({mode:"paper",chainId:4663,projectHandle:"fixture",deployerAddress:deployer,spendEth:"0.01",maxUnitPriceEth:"0.0001"},"fixture.org");
 const context={token,binding:"bound",requestedAt:new Date(now-2000),armedAt:new Date(now-30_000),born:Math.floor(now/1000)-20,deploymentBlock:"50"};
@@ -32,4 +32,24 @@ test("binding changes with the reviewed source, deployment block or immutable li
   const original=routeBinding("plan",terms,claim);
   for(const changed of [{...claim,reviewedSourceHash:"other"},{...claim,sourceUrl:"https://fixture.org/other"},{...claim,report:{chain:{blockHash:"two"}}}])assert.notEqual(routeBinding("plan",terms,changed),original);
   assert.notEqual(routeBinding("plan",{...terms,spendEth:"0.02"},claim),original);
+});
+test("route sell settlement preserves exact reserve impact, fees and proportional cost",()=>{
+  const requestedAt=new Date(now-2000);
+  const sell:RouteSellReport={version:1,venue:"pons-v2-native-curve",status:"passed",reason:"exact_curve_reserve_quote",observedAt:new Date(now-1000).toISOString(),
+    expiresAt:new Date(now+50_000).toISOString(),requestedAt:requestedAt.toISOString(),chainId:4663,tokenAddress:token,deployerAddress:deployer,quantity:"25",
+    simulationWallet:"0x"+"1".repeat(40),blockNumber:100,blockHash:"0x"+"c".repeat(64),blockTimestamp:Math.floor(now/1000),
+    grossQuoteEth:"0.003",baseFeeEth:"0.00003",creatorTaxEth:"0.00006",netQuoteEth:"0.00291",limitations:[]};
+  const fill=routePaperSell("100","0.01",25,sell,{token,deployer,requestedAt},now);
+  assert.equal(fill.quantity,"25");assert.equal(fill.fee,"0.00009");assert.equal(fill.cashDelta,"0.00291");
+  assert.equal(fill.cost,"0.0025");assert.equal(fill.realizedPnl,"0.00041");assert.equal(fill.remainingQuantity,"75");
+  assert.equal(fill.model.reserveImpactIncluded,true);assert.equal(fill.model.gasIncluded,false);
+});
+test("route sell settlement rejects stale, mismatched and inconsistent reports",()=>{
+  const requestedAt=new Date(now-2000),base:RouteSellReport={version:1,venue:"pons-v2-native-curve",status:"passed",reason:"exact_curve_reserve_quote",observedAt:new Date(now-1000).toISOString(),
+    expiresAt:new Date(now+50_000).toISOString(),requestedAt:requestedAt.toISOString(),chainId:4663,tokenAddress:token,deployerAddress:deployer,quantity:"25",
+    simulationWallet:"0x"+"1".repeat(40),blockNumber:100,blockHash:"0x"+"c".repeat(64),blockTimestamp:Math.floor(now/1000),
+    grossQuoteEth:"0.003",baseFeeEth:"0.00003",creatorTaxEth:"0.00006",netQuoteEth:"0.00291",limitations:[]};
+  for(const patch of [{status:"blocked"},{tokenAddress:deployer},{deployerAddress:token},{quantity:"24"},{netQuoteEth:"0.003"},
+    {requestedAt:new Date(now-3000).toISOString()},{expiresAt:new Date(now-1).toISOString()}])
+    assert.throws(()=>routePaperSell("100","0.01",25,{...base,...patch} as RouteSellReport,{token,deployer,requestedAt},now));
 });

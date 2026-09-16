@@ -8,7 +8,7 @@ const preview: SellPreview = { id, positionId: id, tokenCA: `0x${"a".repeat(40)}
 test("preview never executes; only explicit confirmation settles, and an uncertain result retains its original intent", async () => {
   let confirms = 0, cancels = 0;
   const api = { previewPaperSell: async () => preview, confirmPaperSell: async () => { confirms++; throw new Error("timeout secret"); },
-    cancelPaperSell: async () => { cancels++; return { cancelled: true }; }, listPaperFills: async () => [] };
+    getPaperSell:async()=>preview,cancelPaperSell: async () => { cancels++; return { cancelled: true }; }, listPaperFills: async () => [] };
   const card = await handlePaperCallback(api, `paper:preview:25:${id}`, "telegram:42");
   assert.match(card.text, /Minimum net/); assert.ok(card.text.includes(preview.tokenCA)); assert.equal(confirms, 0);
   const failed = await handlePaperCallback(api, `paper:confirm:${id}`, "telegram:42");
@@ -32,5 +32,13 @@ test("sell API credentials go only to decision routes; actor and percent are pre
 });
 test("history distinguishes route-priced entries and their charged allowance",()=>{
  const fill:PaperFill={id,positionId:id,currency:"ETH",side:"buy",createdAt:new Date().toISOString(),quote:{tokenAddress:preview.tokenCA},execution:{...preview.preview,side:"buy",gasAllowance:"0.0001",buyGasEstimate:"0.00001",model:{version:"pons-route-paper-v1",gasAccounting:"full_approved_allowance"}}};
- const card=formatHistory([fill]);assert.match(card.text,/Route entry/);assert.match(card.text,/gas allowance 0.0001 ETH/);assert.match(card.text,/Policy-v2 route entries/);
+ const card=formatHistory([fill]);assert.match(card.text,/Route entry/);assert.match(card.text,/gas allowance 0.0001 ETH/);assert.match(card.text,/Policy-v2 entries/);
+});
+test("route exits show a bounded queue before presenting exact curve terms",async()=>{
+ const api={previewPaperSell:async()=>({queued:true as const,phase:"quote" as const,id}),getPaperSell:async()=>preview,
+  confirmPaperSell:async()=>({queued:true as const,phase:"execution" as const,intent:{id}}),cancelPaperSell:async()=>({cancelled:true}),listPaperFills:async()=>[]};
+ const waiting=await handlePaperCallback(api,`paper:preview:25:${id}`,"telegram:42");assert.match(waiting.text,/EXIT QUOTE QUEUED/);
+ assert.ok(waiting.reply_markup!.inline_keyboard.flat().some(b=>b.callback_data===`paper:status:${id}`));
+ const ready=await handlePaperCallback(api,`paper:status:${id}`,"telegram:42");assert.match(ready.text,/CONFIRM PAPER SELL/);
+ const checking=await handlePaperCallback(api,`paper:confirm:${id}`,"telegram:42");assert.match(checking.text,/SELL RECHECK QUEUED/);
 });

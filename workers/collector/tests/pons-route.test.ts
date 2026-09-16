@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {createHash} from 'node:crypto';
-import {inspectPonsRoute,matchesArtifact,SIMULATION_WALLET,type Manifest} from '../src/pons-route.js';
+import {inspectPonsRoute,inspectPonsSellRoute,matchesArtifact,SIMULATION_WALLET,type Manifest} from '../src/pons-route.js';
 import {PONS_MANIFEST} from '../src/pons-manifest.js';
 import {PONS_V2_LAUNCH_FACTORY,units} from '@rh/core';
 const token='0x'+'a'.repeat(40),curve='0x'+'b'.repeat(40),deployer='0x'+'c'.repeat(40),hash='0x'+'d'.repeat(64),wallet=SIMULATION_WALLET;
@@ -23,10 +23,17 @@ function fixture(change:string='') {
    if(d.startsWith(manifest.selectors['getLaunchedToken(address)']))return encoded(token,curve,change==='deployer'?token:deployer,deployer,change==='quote'?token:0n,1n,100n,10n,0n,0n,change==='graduated'?1n:0n,0n,0n,0n,1n);
    if(d.startsWith(manifest.selectors['factory()']))return encoded(PONS_V2_LAUNCH_FACTORY.toLowerCase());
    if(d.startsWith(manifest.selectors['token()']))return encoded(token);
+   if(d.startsWith(manifest.selectors['pairToken()']))return encoded(0n);
+   if(d.startsWith(manifest.selectors['graduated()']))return encoded(change==='graduated'?1n:0n);
+   if(d.startsWith(manifest.selectors['readyToGraduate()']))return encoded(change==='ready'?1n:0n);
+   if(d.startsWith(manifest.selectors['getReserves()']))return encoded(units('10'),units('1000'));
+   if(d.startsWith(manifest.selectors['realQuoteReserve()']))return encoded(units(change==='thin'?'0.01':'5'));
+   if(d.startsWith(manifest.selectors['feeBps()']))return encoded(100n);
+   if(d.startsWith(manifest.selectors['creatorTaxBps()']))return encoded(200n);
    if(d.startsWith(manifest.selectors['decimals()']))return encoded(change==='decimals'?6n:18n);
    if(d.startsWith(manifest.selectors['snipeTaxExempt(address)']))return encoded(change==='exempt'?1n:0n);
    if(d.startsWith(manifest.selectors['currentSnipeTaxBps(address)']))return encoded(change==='launchTax'?9900n:0n);
-   if(d.startsWith(manifest.selectors['balanceOf(address)']))return encoded(change==='balance'?1n:0n);
+   if(d.startsWith(manifest.selectors['balanceOf(address)']))return encoded(d.endsWith(word(curve))?(change==='tokenBalance'?units('999'):units('1000')):(change==='balance'?1n:0n));
    throw Error('unexpected_call');
   }
   if(method==='eth_simulateV1'){
@@ -63,4 +70,17 @@ test('unsupported routes, copycats, exempt wallets, stale state and reverted or 
 test('bytecode masks only constructor immutable positions, rejecting modified instructions',()=>{
  const artifact={length:4,sha256:digest('0x60000001'),immutables:[{start:1,length:2}]};
  assert.ok(matchesArtifact('0x60ffaa01',artifact));assert.ok(!matchesArtifact('0x61ffaa01',artifact));assert.ok(!matchesArtifact('0x60ff01',artifact));
+});
+test('sell adapter uses exact verified curve reserves and frozen fee terms without simulating or submitting',async()=>{
+ const f=fixture(),r=await inspectPonsSellRoute({tokenAddress:token,deployerAddress:deployer,quantity:'100'},f.rpc,manifest);
+ assert.equal(r.status,'passed',r.reason);assert.equal(r.grossQuoteEth,'0.90909090909090909');
+ assert.equal(r.baseFeeEth,'0.00909090909090909');assert.equal(r.creatorTaxEth,'0.018181818181818181');
+ assert.equal(r.netQuoteEth,'0.881818181818181819');assert.equal(r.feeBps,100);assert.equal(r.creatorTaxBps,200);
+ assert.ok(!f.seen.includes('eth_simulateV1'));assert.ok(!f.seen.some(x=>/send|sign/i.test(x)));
+});
+test('sell adapter rejects graduated, drained, mismatched and copycat routes',async()=>{
+ for(const change of ['chain','factory','curve','deployer','quote','graduated','ready','decimals','stale','reorg','thin','tokenBalance']){
+  const r=await inspectPonsSellRoute({tokenAddress:token,deployerAddress:deployer,quantity:'100'},fixture(change).rpc,manifest);
+  assert.notEqual(r.status,'passed',change);
+ }
 });

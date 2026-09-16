@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { auditLog, marketQuotes, paperAccounts, paperFills, paperLedger, paperSellIntents, paperSnipes, positions, purchaseProposals, tokens, type Db } from "@rh/db";
-import { captureEntry, decimal, PAPER_MODEL, quoteUsable, simulateBuy, simulateSell, snipeReservation, units, type routePaperBuy, type EntrySnapshot, type MarketQuote } from "@rh/core";
+import { captureEntry, decimal, PAPER_MODEL, quoteUsable, routePaperSell, simulateBuy, simulateSell, snipeReservation, units, type routePaperBuy, type EntrySnapshot, type MarketQuote, type RouteSellReport } from "@rh/core";
 import { getDb } from "./db.js";
 import { dbRowToMem, toPositionPayload } from "./paper-positions-mem.js";
 import { identityEnabled, proposalIdentity } from "./identity.js";
@@ -83,7 +83,7 @@ export async function settleLedgerBuy(tx: Tx, id: string, actor: string, snipeId
     const [position] = await tx.insert(positions).values({ tokenAddress: proposal.tokenAddress, size: proposal.size,
       entryPrice: model.executionPrice, currentPrice: q?String(currency === "ETH" ? q.priceEth : q.priceUsd):null, entrySnapshot: snapshot,
       markSource: routeExecution?"pons_route":"dexscreener", markObservedAt: q?new Date(q.observedAt):null, openedAt: new Date(), status: "simulated_open",
-      proposalId: id, channel: "telegram", note: routeExecution ? "Paper route quantity/fees; full approved gas allowance charged; exits use reference model; no live transaction" : "Paper fill; explicit modeled fee/slippage; no live transaction",
+      proposalId: id, channel: "telegram", note: routeExecution ? "Paper route quantity/fees; full approved entry gas allowance charged; supported Pons exits require fresh reserve quotes; no live transaction" : "Paper fill; explicit modeled fee/slippage; no live transaction",
       ledgerManaged: true, remainingQuantity: model.quantity, remainingCost: cost }).returning();
     const [fill] = await tx.insert(paperFills).values({ eventKey: `buy:${id}`, positionId: position.id, currency, side: "buy", execution: { ...model, identity }, quote: snapshot.quote, actor }).returning();
     await tx.update(paperAccounts).set({ cash: decimal(units(account.cash) - units(cost)) }).where(eq(paperAccounts.currency, currency));
@@ -99,7 +99,20 @@ export async function previewSell(id: string, percent: number, actor: string) {
     if (!p) throw new LedgerError("position_not_found", 404);
     if (!["simulated_open", "alert_fired"].includes(p.status)) throw new LedgerError("position_closed");
     if (!p.entrySnapshot || !p.remainingQuantity || !p.remainingCost) throw new LedgerError("legacy_entry_quantity_missing");
-    const { currency } = currencySize(p.size), q = await currentQuote(tx, p.tokenAddress);
+    const { currency } = currencySize(p.size);
+    const entry=p.entrySnapshot as (EntrySnapshot&{execution?:{model?:{version?:string};route?:{deployerAddress?:string}}})|null;
+    if(entry?.execution?.model?.version==="pons-route-paper-v1"){
+      if(currency!=="ETH")throw new LedgerError("route_sell_currency_unsupported");
+      const [recent]=await tx.select({n:sql<number>`count(*)::int`}).from(paperSellIntents).where(sql`${paperSellIntents.routeRequestedAt}>now()-interval '5 minutes' and ${paperSellIntents.status}<>'cancelled'`);
+      if(Number(recent.n)>=3)throw new LedgerError("route_checks_busy");
+      const quantity=decimal(units(p.remainingQuantity)*BigInt(percent)/100n);if(units(quantity)<=0n)throw new LedgerError("amount_below_precision");
+      const now=new Date(),placeholder={mode:"paper",side:"sell",quantity,fee:"0",cashDelta:"0",executionPrice:"0",cost:"0",realizedPnl:"0",
+        remainingQuantity:p.remainingQuantity,remainingCost:p.remainingCost,model:{version:"pons-route-paper-sell-queued"}};
+      const [intent]=await tx.insert(paperSellIntents).values({positionId:id,positionVersion:p.positionVersion,percent,currency,actor,minimumNet:"0.000000000000000001",
+        preview:placeholder,status:"route_quoting",expiresAt:new Date(now.getTime()+300_000),routeRequestedAt:now}).returning();
+      return {...intent,tokenCA:p.tokenAddress,paperOnly:true,queued:true,phase:"quote"};
+    }
+    const q = await currentQuote(tx, p.tokenAddress);
     const preview = simulateSell(p.remainingQuantity, p.remainingCost, percent, String(currency === "ETH" ? q.priceEth : q.priceUsd));
     const minimumNet = decimal(units(preview.cashDelta) * BigInt(10000 - PAPER_MODEL.confirmMoveBps) / 10000n);
     const [intent] = await tx.insert(paperSellIntents).values({ positionId: id, positionVersion: p.positionVersion, percent, currency,
@@ -115,12 +128,34 @@ export async function confirmSell(id: string, actor: string) {
     if (intent.status === "executed" && intent.fillId) {
       const [fill] = await tx.select().from(paperFills).where(eq(paperFills.id, intent.fillId)); return { fill, replayed: true };
     }
-    if (intent.status !== "pending" || intent.expiresAt.getTime() <= Date.now()) throw new LedgerError("sell_preview_expired");
+    if(intent.status==="route_failed")throw new LedgerError((intent.routeReport as RouteSellReport|null)?.reason??"route_sell_quote_failed");
+    if(intent.status==="route_quoting"||intent.status==="route_confirming"){
+      if(intent.expiresAt.getTime()<=Date.now())throw new LedgerError("sell_preview_expired");
+      return {intent,queued:true,phase:intent.status==="route_quoting"?"quote":"execution"};
+    }
+    if (intent.status !== "pending"&&intent.status!=="execution_ready" || intent.expiresAt.getTime() <= Date.now()) throw new LedgerError("sell_preview_expired");
     const [p] = await tx.select().from(positions).where(eq(positions.id, intent.positionId)).for("update");
     if (!p || p.positionVersion !== intent.positionVersion || !["simulated_open", "alert_fired"].includes(p.status)) throw new LedgerError("position_changed_refresh_preview");
     if (!p.remainingQuantity || !p.remainingCost) throw new LedgerError("legacy_entry_quantity_missing");
-    const q = await currentQuote(tx, p.tokenAddress), currency = intent.currency;
-    const execution = simulateSell(p.remainingQuantity, p.remainingCost, intent.percent, String(currency === "ETH" ? q.priceEth : q.priceUsd));
+    const currency = intent.currency,routePreview=(intent.preview as {model?:{version?:string}})?.model?.version==="pons-route-paper-sell-v1";
+    if(routePreview&&intent.status==="pending"){
+      const requested=new Date();
+      const [queued]=await tx.update(paperSellIntents).set({status:"route_confirming",routeRequestedAt:requested,routeAttemptAt:null,routeCheckedAt:null,routeReport:null,
+        expiresAt:new Date(requested.getTime()+300_000)}).where(and(eq(paperSellIntents.id,id),eq(paperSellIntents.status,"pending"))).returning();
+      return {intent:queued,queued:true,phase:"execution"};
+    }
+    let q:Record<string,unknown>,execution:ReturnType<typeof simulateSell>|ReturnType<typeof routePaperSell>;
+    if(intent.status==="execution_ready"){
+      const entry=p.entrySnapshot as (EntrySnapshot&{execution?:{route?:{deployerAddress?:string}}})|null;
+      const deployer=entry?.execution?.route?.deployerAddress?.toLowerCase()??"";
+      const token=p.tokenAddress?.toLowerCase()??"";
+      try{execution=routePaperSell(p.remainingQuantity,p.remainingCost,intent.percent,intent.routeReport as RouteSellReport|null,
+        {token,deployer,requestedAt:intent.routeRequestedAt});}catch(e){throw new LedgerError(e instanceof Error?e.message:"route_sell_quote_invalid");}
+      q={tokenAddress:token,source:"pons-v2-exact-reserves",observedAt:(intent.routeReport as RouteSellReport).observedAt,route:intent.routeReport};
+    }else{
+      const market=await currentQuote(tx,p.tokenAddress);q=market;
+      execution=simulateSell(p.remainingQuantity,p.remainingCost,intent.percent,String(currency==="ETH"?market.priceEth:market.priceUsd));
+    }
     if (units(execution.cashDelta) < units(intent.minimumNet)) throw new LedgerError("price_moved_refresh_preview");
     const [account] = await tx.select().from(paperAccounts).where(eq(paperAccounts.currency, currency));
     const [fill] = await tx.insert(paperFills).values({ eventKey: `sell:${id}`, positionId: p.id, currency, side: "sell", execution, quote: q, actor }).returning();
@@ -145,6 +180,20 @@ export async function ledgerSummary() {
   });
 }
 export async function fillHistory() { return withLedger(tx => tx.select().from(paperFills).orderBy(desc(paperFills.createdAt)).limit(100)); }
+
+export async function sellIntent(id:string,actor:string){
+  return withLedger(async tx=>{
+    const [row]=await tx.select({intent:paperSellIntents,tokenCA:positions.tokenAddress}).from(paperSellIntents)
+      .innerJoin(positions,eq(positions.id,paperSellIntents.positionId)).where(eq(paperSellIntents.id,id));
+    if(!row)throw new LedgerError("sell_intent_not_found",404);
+    if(row.intent.actor!==actor)throw new LedgerError("sell_owner_mismatch");
+    if(row.intent.status==="route_failed")throw new LedgerError((row.intent.routeReport as RouteSellReport|null)?.reason??"route_sell_quote_failed");
+    if(row.intent.status==="executed"&&row.intent.fillId){const [fill]=await tx.select().from(paperFills).where(eq(paperFills.id,row.intent.fillId));return {fill,replayed:true};}
+    if(row.intent.expiresAt.getTime()<=Date.now())throw new LedgerError("sell_preview_expired");
+    return {...row.intent,tokenCA:row.tokenCA,paperOnly:true,queued:["route_quoting","route_confirming","execution_ready"].includes(row.intent.status),
+      phase:row.intent.status==="route_quoting"?"quote":row.intent.status==="pending"?"preview":"execution"};
+  });
+}
 
 async function reconcile(tx: Tx) {
   const accounts = await tx.select().from(paperAccounts);
@@ -209,6 +258,6 @@ export async function ledgerBook() {
       valuationComplete: open.length === eth.length && eth.every(p => p.currentValue != null),
       positions: open.map(p => ({ ...p, mark: p.currentPrice })), buyWallets: [],
       totals: { cashEth: cash.cash, positionsEth: String(positionsEth), unrealizedEth: String(eth.reduce((sum,p) => sum + (p.unrealizedPnl ?? 0),0)), equityEth: String(Number(cash.cash) + positionsEth) },
-      note: "Durable paper ledger. Unpriced positions use remaining cost. New route snipes include simulated buy fees/taxes and a fixed gas allowance. Other entries and all exits use the reference model." } };
+      note: "Durable paper ledger. Unpriced positions use remaining cost. Route snipes include simulated buy fees/taxes and a fixed entry gas allowance; their Pons curve exits use fresh exact reserves, fees and tax but exclude exit gas. Standard entries/exits use the reference model." } };
   });
 }
