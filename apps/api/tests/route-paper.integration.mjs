@@ -37,7 +37,8 @@ const report={version:1,venue:'pons-v2-native-curve',status:'passed',reason:'rou
  quantity:'400',spendEth:'0.7',buyFeeEth:'0.007',creatorTaxEth:'0.014',buyGasEstimateEth:'0.00001',sellReturnEth:'0.658',roundTripLossEth:'0.042',limitations:[]};
 const setReport=async(patch={})=>sql`update paper_snipes set route_report=${sql.json({...report,...patch})},route_checked_at=now() where id=${plan.id}`;
 for(const [patch,reason] of [[{status:'blocked'},'waiting_for_route_simulation'],[{expiresAt:new Date(Date.now()-1).toISOString()},'route_simulation_stale'],
- [{binding:'other'},'route_binding_mismatch'],[{buyGasEstimateEth:'0.001'},'route_gas_above_allowance'],[{quantity:'300'},'price_above_approved_limit']]){
+ [{binding:'other'},'route_binding_mismatch'],[{buyGasEstimateEth:'0.001'},'route_gas_above_allowance'],
+ [{sellReturnEth:'0.6',roundTripLossEth:'0.1'},'route_round_trip_loss_above_limit'],[{blockNumber:49},'route_precedes_deployment'],[{quantity:'300'},'price_above_approved_limit']]){
  await setReport(patch);assert.equal((await evaluateSnipe(plan.id)).reason,reason);
  assert.equal((await sql`select count(*)::int n from paper_fills`)[0].n,0);
 }

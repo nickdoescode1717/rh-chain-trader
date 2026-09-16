@@ -1,5 +1,7 @@
 # Next work to reach actual launch buys
 
+As of September 16, the first adapter below and its route-derived policy-v2 paper entry are implemented for native-ETH Pons V2 curves. Fresh reports are bound to Telegram-approved limits and reviewed identity; exact quantities/fees/tax plus a fixed gas allowance are recorded. DEX indexing is no longer required for these entries. The remaining work is to prove the complete launch path, add route-based exits and build isolated signing/recovery before any live enablement.
+
 The deployed bot can conditionally buy in its paper ledger. Finding a CA does not establish a tradeable market, an executable route or permission to spend real funds. Live transaction submission remains disabled.
 
 ## 1. Build and validate one venue's execution adapter
@@ -8,11 +10,11 @@ Start with the venue behind a real, reviewed candidate that the existing Pons V2
 
 Implement exact-chain/token buy and sell quotes, calldata construction, output minimum, deadline, gas estimate and a buy-then-sell simulation against the same chain state. Report actual route coverage, token restrictions, taxes and failures. An isolated call to sell from a wallet with no balance is not a valid round-trip test. Neither a successful simulation nor source verification guarantees future sellability.
 
-Acceptance: fixture and fork tests prove successful trades, trading-disabled launches, insufficient liquidity, unexpected token/router, slippage breach, taxes and reverted buy/sell paths. The paper engine records route-derived quantities and costs with their block/time, instead of relying solely on indexed market prices and fixed fee assumptions. No signing is needed for this step.
+Acceptance achieved for the native-ETH Pons V2 route through verified-bytecode fixtures, read-only mainnet simulations and isolated database settlement tests. ERC-20 quote assets, graduated V4 pools and other venues still need separate adapters.
 
-## 2. Measure the whole launch path in paper mode
+## 2. Measure the whole launch path and exits in paper mode
 
-Use one owner-selected project and reviewed deployer. Record detection, official CA discovery, Telegram identity review, confirmation, quote, simulated submission and fill timestamps. Keep failed/missed launches and costs in the report. Rehearse provider outage, quota exhaustion, restart, duplicate event and reorg recovery.
+Use one owner-selected project and reviewed deployer. Record detection, official CA discovery, Telegram identity review, confirmation, route request, simulated submission and fill timestamps. Keep failed/missed launches and costs in the report. Rehearse provider outage, quota exhaustion, restart, duplicate event and reorg recovery. Add route-derived paper sells before treating the paper P&L as execution-realistic; current exits use the reference-price model.
 
 The current five-minute slow polling, hourly research, manual CA source review and ten-minute entry window can miss launches. Resolve these measured bottlenecks before claiming reliable sniping. A future prelaunch source approval must pin a reviewed official source and tightly constrained identity rules; it must not trust any CA an LLM or copied account supplies. Research watches and spending approvals remain separate.
 

@@ -34,7 +34,10 @@ await assert.rejects(()=>sql`update paper_snipes set terms=terms || '{"spendEth"
 const decision=(id,action,extra={})=>post('/'+id+'/'+action,{actor:'telegram:42',...extra});
 await changeCollection(db,'stop','telegram:42');assert.equal((await decision(p.id,'arm')).status,409);
 assert.equal((await decision(p.id,'route')).body.error,'enable_chain_collection_before_route_check');
-await changeCollection(db,'chainon','telegram:42');assert.equal((await decision(p.id,'arm')).status,200);
+await changeCollection(db,'chainon','telegram:42');
+const [malformed]=await sql`insert into paper_snipes(terms,created_by,status,armed_at,expires_at) values(${sql.json({...common,version:1,feeBps:30})},'telegram:42','armed',now(),now()+interval '1 hour') returning id`;
+const malformedResult=await evaluateSnipe(malformed.id);assert.equal(malformedResult.status,'cancelled');assert.equal(malformedResult.reason,'unsupported_execution_policy');
+assert.equal((await decision(p.id,'arm')).status,200);
 const [armed]=await sql`select armed_at,expires_at from paper_snipes where id=${p.id}`;
 assert.equal(armed.expires_at-armed.armed_at,720*3600000);
 await sql`update paper_snipes set armed_at=now()-interval '30 seconds' where id=${p.id}`;
