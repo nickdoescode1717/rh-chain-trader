@@ -1,5 +1,6 @@
 /** Paper purchase proposals memory fallback. Never auto-execute. */
 export interface MemPurchaseProposal {
+  projectHandle?: string | null;
   id: string;
   tokenId: string | null;
   tokenAddress: string | null;

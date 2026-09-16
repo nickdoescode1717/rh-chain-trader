@@ -1,0 +1,15 @@
+# X data budget and shared cache
+
+Owner-authorized ceiling: **US$0.50/day** for the bot's TwitterAPI.io watch collection. Migration 0012 creates the persistent reservation ledger, response cache and provider backoff state. `WATCH_X_ENABLED` remains the collection switch; only the collector receives the key.
+
+Before a paid request, the collector takes a PostgreSQL transaction advisory lock and reserves its maximum expected cost: 18 credits for one profile or 300 credits for a maximum-20-post timeline response. At 100,000 credits/USD, no new request is allowed if it would take the preceding 24 hours above 50,000 credits. This rolling guard is stricter than a calendar-day reset. Missing storage fails closed. There is no automatic retry of a request whose outcome is uncertain, and failures/crashes retain their full reservation. This conservative allowance can run out before actual billed spend reaches $0.50.
+
+Rates are based on [TwitterAPI.io pricing](https://twitterapi.io/pricing) and the [20-post endpoint](https://docs.twitterapi.io/api-reference/endpoint/get_user_last_tweets), verified 2026-09-10. The guard covers requests made through this bot under those rates; it cannot control other clients using the key, provider price changes, or unrelated hosting/Grok charges. The displayed amount is a reservation estimate, not a provider invoice. Requests returning an unexpected response size fail validation.
+
+Cache keys are shared by normalized account and endpoint across watches and collector processes. Profiles (including website mappings) refresh at most daily; main account posts hourly; secondary accounts every six hours. Cached data retains its original observation timestamp. A ten-minute persisted lease prevents duplicate in-flight fetches and delays retry after crashes. Ordinary failures delay that key by one hour; HTTP 401/402/403/429 also pause all new vendor requests for one hour. Fresh cache reads remain available while paid calls are paused or budget-limited. The existing one-watch-per-minute, oldest-due-first queue bounds work and avoids repeatedly prioritizing the newest watch.
+
+Telegram `/usage` and the X data budget buttons show UTC-today/rolling-day reservations, remaining allowance, request attempts and provider cooldown. Budget exhaustion appears in watch coverage notes while public website research continues. Refresh buttons read saved results and do not bypass cache or force paid requests.
+
+The old official-X scanner is separate and remains disabled. No auto-buy/sell policy or live execution is added. Existing project pauses and identity approvals are unaffected.
+
+Validation: normal workspace tests plus `workers/collector/tests/x-budget.integration.mjs`, which requires an isolated random database name. It tests same-key concurrency, final-credit contention, cache sharing and a child-process restart, priority TTLs, charged failures/backoff, crash reservations, and rolling-window expiry. Its provider is a fixture; it makes no paid calls.

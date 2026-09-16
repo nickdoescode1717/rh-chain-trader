@@ -5,10 +5,15 @@
  * See docs/PURCHASE_PROPOSALS.md + docs/POSITIONS.md + docs/ISOLATED_SIGNER.md
  */
 import { Hono } from "hono";
-import { desc, eq } from "drizzle-orm";
-import { auditLog, positions, purchaseProposals } from "@rh/db";
+import { and, desc, eq } from "drizzle-orm";
+import { auditLog, positions, purchaseProposals, marketQuotes } from "@rh/db";
+import { captureEntry, type EntrySnapshot, type MarketQuote } from "@rh/core";
 import { getDb } from "../db.js";
 import { isRecord } from "../validation.js";
+import { telegramDecisionError } from "../telegram-approval.js";
+import { ledgerBuy, ledgerEnabled, LedgerError } from "../paper-ledger.js";
+import { dbRowToMem } from "../paper-positions-mem.js";
+import { identityEnabled, identityTransaction, proposalIdentity } from "../identity.js";
 import {
   memPurchaseProposals,
   type MemPurchaseProposal,
@@ -16,6 +21,7 @@ import {
 import {
   openPaperFromProposal,
   toPositionPayload,
+  memPaperPositions,
 } from "../paper-positions-mem.js";
 import {
   buildSignerHandoffStub,
@@ -34,6 +40,7 @@ export const purchaseProposalRoutes = new Hono();
 purchaseProposalRoutes.get("/", async (c) => {
   const db = getDb();
   if (!db) {
+    if (identityEnabled()) return c.json({ error:"identity_storage_unavailable" },503);
     return c.json({
       data: memPurchaseProposals.map(toPhonePayload),
       source: "memory",
@@ -44,13 +51,25 @@ purchaseProposalRoutes.get("/", async (c) => {
     .select()
     .from(purchaseProposals)
     .orderBy(desc(purchaseProposals.createdAt));
-  return c.json({ data: rows.map(toPhonePayload), source: "postgres", paperOnly: true });
+  const data = identityEnabled() ? await identityTransaction(async tx => {
+    const result = [];
+    for (const row of rows) result.push({ ...toPhonePayload(row), identityGateEnabled: true,
+      issuerIdentity: { ...await proposalIdentity(tx,row), liveExecutionBlocked:true } });
+    return result;
+  }) : rows.map(toPhonePayload);
+  return c.json({ data, source: "postgres", paperOnly: true });
 });
 
 purchaseProposalRoutes.post("/", async (c) => {
   const rawBody: unknown = await c.req.json().catch(() => null);
   if (!isRecord(rawBody)) return c.json({ error: "invalid_json" }, 400);
   const body = rawBody as CreateBody;
+  let projectHandle: string | null = null;
+  if (body.projectHandle != null) {
+    if (typeof body.projectHandle !== "string") return c.json({ error:"invalid_project_handle" },400);
+    projectHandle = body.projectHandle.replace(/^@/, "").toLowerCase();
+    if (!/^[a-z0-9_]{1,15}$/.test(projectHandle)) return c.json({ error:"invalid_project_handle" },400);
+  }
   for (const field of ["tokenId", "leadSource", "rationale", "expiresAt", "channel", "note"] as const) {
     if (body[field] != null && typeof body[field] !== "string") {
       return c.json({ error: `invalid_${field}` }, 400);
@@ -106,7 +125,7 @@ purchaseProposalRoutes.post("/", async (c) => {
     expiresAt = new Date(t);
   }
 
-  const channel = body.channel ?? "grok_primary";
+  const channel = body.channel ?? "telegram";
   const note =
     body.note ?? "PAPER_PROPOSAL_PENDING_NICK -- no auto-execute; no keys; no tx";
   const exits = (body.exits ?? null) as Record<string, unknown> | null;
@@ -118,6 +137,7 @@ purchaseProposalRoutes.post("/", async (c) => {
   const db = getDb();
   if (!db) {
     const row: MemPurchaseProposal = {
+      projectHandle,
       id: crypto.randomUUID(),
       tokenId,
       tokenAddress,
@@ -146,6 +166,7 @@ purchaseProposalRoutes.post("/", async (c) => {
   const [row] = await db
     .insert(purchaseProposals)
     .values({
+      projectHandle,
       tokenId,
       tokenAddress,
       size,
@@ -174,34 +195,6 @@ purchaseProposalRoutes.post("/", async (c) => {
   );
 });
 
-async function persistPositionDb(
-  pos: ReturnType<typeof openPaperFromProposal>
-): Promise<void> {
-  const db = getDb();
-  if (!db) return;
-  try {
-    await db.insert(positions).values({
-      id: pos.id,
-      tokenAddress: pos.tokenAddress,
-      size: pos.size ?? undefined,
-      entryPrice: pos.entryPrice ?? undefined,
-      currentPrice: pos.currentPrice ?? undefined,
-      pnlAbs: pos.pnlAbs ?? undefined,
-      pnlPct: pos.pnlPct ?? undefined,
-      proposalId: pos.proposalId ?? undefined,
-      openedAt: new Date(pos.openedAt),
-      status: "simulated_open",
-      note: pos.note ?? "PAPER simulated_open from Approve",
-      channel: "grok_primary",
-    });
-  } catch (err) {
-    console.warn(
-      "[purchase-proposals] positions insert failed (mem still has it):",
-      err instanceof Error ? err.message : err
-    );
-  }
-}
-
 function approveResponse(
   row: {
     id: string;
@@ -213,9 +206,10 @@ function approveResponse(
     rationale?: string | null;
   },
   source: "memory" | "postgres",
-  preferredBuyAddress?: string | null
+  preferredBuyAddress?: string | null,
+  recordedPosition?: ReturnType<typeof openPaperFromProposal>
 ) {
-  const pos = openPaperFromProposal({
+  const pos = recordedPosition ?? openPaperFromProposal({
     id: row.id,
     tokenAddress: row.tokenAddress,
     size: row.size,
@@ -261,7 +255,20 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
       400
     );
   }
-  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
+  const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
+  if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
+  const actor = actorBody.actor as string;
+  if (identityEnabled() && !ledgerEnabled()) return c.json({error:"identity_requires_durable_ledger"},503);
+  if (ledgerEnabled()) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return c.json({ error: "invalid_id" }, 400);
+    try {
+      const result = await ledgerBuy(id, actor);
+      const p = dbRowToMem(result.position);
+      p.marketQuote = result.fill.quote as MarketQuote;
+      const response = approveResponse(result.proposal, "postgres", null, p), recordedIdentity = p.entrySnapshot?.identity;
+      return c.json({ ...response, data:{ ...response.data, ...(isRecord(recordedIdentity) ? {issuerIdentity:{...recordedIdentity,liveExecutionBlocked:true}} : {}) }, fill: result.fill, replayed: result.replayed });
+    } catch (e) { return c.json({ error: e instanceof LedgerError ? e.message : "paper_settlement_unavailable" }, e instanceof LedgerError ? e.status : 503); }
+  }
   const preferred =
     (actorBody.buyAddress ?? actorBody.preferredBuyAddress ?? null) as string | null;
   const db = getDb();
@@ -269,6 +276,7 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
   if (!db) {
     const row = memPurchaseProposals.find((p) => p.id === id);
     if (!row) return c.json({ error: "not_found" }, 404);
+    if (process.env.MARKET_PRICING_ENABLED === "true") return c.json({ error: "entry_quote_storage_unavailable" }, 503);
     if (row.status !== "pending_nick") {
       return c.json({ error: "not_pending_nick", status: row.status }, 409);
     }
@@ -282,60 +290,35 @@ purchaseProposalRoutes.post("/:id/approve", async (c) => {
     return c.json(approveResponse(row, "memory", preferred));
   }
 
-  const [existing] = await db.select().from(purchaseProposals).where(eq(purchaseProposals.id, id));
-  if (!existing) return c.json({ error: "not_found" }, 404);
-  if (existing.status !== "pending_nick") {
-    return c.json({ error: "not_pending_nick", status: existing.status }, 409);
-  }
-  if (isExpired(existing.expiresAt)) {
-    const [expired] = await db
-      .update(purchaseProposals)
-      .set({ status: "expired" })
-      .where(eq(purchaseProposals.id, id))
-      .returning();
-    return c.json({ error: "expired", data: toPhonePayload(expired) }, 409);
-  }
-
-  const [row] = await db
-    .update(purchaseProposals)
-    .set({
-      status: "approved",
-      approvedAt: new Date(),
-      note: "PAPER_APPROVED -- position opened + signer_handoff_stub; no sign",
-    })
-    .where(eq(purchaseProposals.id, id))
-    .returning();
-
-  const resp = approveResponse(row, "postgres", preferred);
-  await persistPositionDb(
-    openPaperFromProposal({
-      id: row.id,
-      tokenAddress: row.tokenAddress,
-      size: row.size,
-      scores: row.scores,
-      rationale: row.rationale,
-    })
-  );
-
-  await db.insert(auditLog).values({
-    action: "purchase_proposal_approved",
-    actor,
-    detail: {
-      id: row.id,
-      tokenAddress: row.tokenAddress,
-      next: "signer_handoff_stub",
-      positionId: resp.position.id,
-      revalidateRequired: true,
-      signed: false,
-      txSubmitted: false,
-      paperOnly: true,
-      buyAddress: resp.signerHandoff.buyAddress,
-      buyAddressSelection: resp.signerHandoff.buyAddressSelection,
-      keyModel: resp.signerHandoff.keyModel,
-    },
+  // Lock a proposal while recording its approval, immutable entry snapshot and position.
+  // No memory mutation or success response until all writes commit.
+  const result = await db.transaction(async (tx) => {
+    const [existing] = await tx.select().from(purchaseProposals).where(eq(purchaseProposals.id, id)).for("update");
+    if (!existing) return { error: "not_found", status: 404 as const };
+    if (existing.status !== "pending_nick") return { error: "not_pending_nick", status: 409 as const };
+    if (isExpired(existing.expiresAt)) return { error: "expired", status: 409 as const };
+    let entrySnapshot: EntrySnapshot | null = null;
+    if (process.env.MARKET_PRICING_ENABLED === "true") {
+      const [cached] = await tx.select().from(marketQuotes).where(eq(marketQuotes.tokenAddress, (existing.tokenAddress ?? "").toLowerCase()));
+      if (!cached || cached.lastError) return { error: "fresh_entry_quote_required", status: 409 as const };
+      try { entrySnapshot = captureEntry(cached.quote as MarketQuote | null, existing.tokenAddress ?? "", existing.size); }
+      catch { return { error: "fresh_entry_quote_required", status: 409 as const }; }
+    }
+    const pos = openPaperFromProposal({ ...existing, entrySnapshot, register: false });
+    const [row] = await tx.update(purchaseProposals).set({ status: "approved", approvedAt: new Date(),
+      note: "PAPER_APPROVED -- recorded position; no real transaction" }).where(eq(purchaseProposals.id, id)).returning();
+    await tx.insert(positions).values({ id: pos.id, tokenAddress: pos.tokenAddress, size: pos.size, entryPrice: pos.entryPrice,
+      currentPrice: pos.currentPrice, entrySnapshot: pos.entrySnapshot, markSource: pos.markSource,
+      markObservedAt: pos.markObservedAt ? new Date(pos.markObservedAt) : null, proposalId: pos.proposalId,
+      openedAt: new Date(pos.openedAt), status: "simulated_open", note: pos.note ?? "Paper position", channel: "telegram" });
+    await tx.insert(auditLog).values({ action: "purchase_proposal_approved", actor,
+      detail: { id: row.id, positionId: pos.id, paperOnly: true, signed: false, txSubmitted: false,
+        entrySource: pos.entrySnapshot?.quote.source ?? "legacy_unpriced", entryObservedAt: pos.entrySnapshot?.quote.observedAt ?? null } });
+    return { row, pos };
   });
-
-  return c.json(resp);
+  if ("error" in result) return c.json({ error: result.error, paperOnly: true }, result.status);
+  memPaperPositions.unshift(result.pos);
+  return c.json(approveResponse(result.row, "postgres", preferred, result.pos));
 });
 
 purchaseProposalRoutes.post("/:id/reject", async (c) => {
@@ -347,7 +330,9 @@ purchaseProposalRoutes.post("/:id/reject", async (c) => {
       return c.json({ error: `invalid_${field}` }, 400);
     }
   }
-  const actor = (actorBody.actor as string | undefined) ?? "nick_grok";
+  const decisionError = telegramDecisionError(c.req.header("x-telegram-approval-token"), actorBody.actor);
+  if (decisionError) return c.json({ error: decisionError.error }, decisionError.status);
+  const actor = actorBody.actor as string;
   const db = getDb();
 
   if (!db) {
@@ -381,8 +366,9 @@ purchaseProposalRoutes.post("/:id/reject", async (c) => {
       rejectedAt: new Date(),
       note: actorBody.reason ? `REJECTED: ${actorBody.reason}` : "REJECTED_BY_NICK",
     })
-    .where(eq(purchaseProposals.id, id))
+    .where(and(eq(purchaseProposals.id, id), eq(purchaseProposals.status, "pending_nick")))
     .returning();
+  if (!row) return c.json({ error: "not_pending_nick" }, 409);
 
   await db.insert(auditLog).values({
     action: "purchase_proposal_rejected",

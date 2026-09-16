@@ -1,0 +1,13 @@
+# Route-priced paper exits — 2026-09-16
+
+Production runs application commit `7cc1aabcf97779d52b7e3c6403e3e35d8367ebf6`. Rollback assets, the environment snapshot, cursor copies and database dumps are under `/root/rh-deploy-backups/20260916T144443Z-route-exits` on the server.
+
+Policy-v2 Pons V2 positions no longer use the generic DexScreener reference model when sold. Selecting 25%, 50% or 100% queues a collector check of the current canonical block. The adapter rejects a changed factory, curve or token runtime; a mismatched token, creator or quote asset; non-18-decimal tokens; inconsistent curve token balances; graduation; stale or reorganized blocks; insufficient real quote liquidity; and malformed reserve or fee state. It applies the verified constant-product formula, reserve impact, base fee and creator tax with fixed-point arithmetic.
+
+Telegram presents that first quote and a 1% minimum-proceeds bound. Confirmation records the owner's approval and queues a second fresh quote. The fill settles only from that second report, only while it remains fresh, only against the unchanged position version, and only above the approved minimum. Concurrent retries use the same intent and create one fill. Route positions never fall back to the generic price model. Three route-exit requests per five minutes and twenty RPC calls per check bound provider use.
+
+The local monorepo build and 139 unit tests passed. Eight isolated PostgreSQL integrations passed on the server: collection controls and transport, paper snipes, route entries, targeted monitoring, route-job leases, the general paper ledger, and the new exit lifecycle. The exit test covered queued preview, fresh confirmation recheck, exact reserve settlement, proportional cost, realized P&L and concurrent exactly-once replay. Post-deploy checks confirmed all containers running, the four new columns installed, no queued production exit jobs, owner-gated status access, and the expected Telegram queue/preview/recheck cards.
+
+The cutover preserved 0.88 ETH of paper cash and all three existing positions. Collection is stopped, chain scanning is off, no new RPC or X requests were made, and `ENABLE_TRADING` plus `ENABLE_TX_SUBMISSION` remain false.
+
+This remains paper-only. The exit adapter covers only ungraduated native-ETH Pons V2 curves. It reads exact state at a block but cannot guarantee transaction ordering after that block. Exit gas and L1 data fees are excluded. Graduated V4 pools, ERC-20 quote curves, other launchpads, automatic exit policies, isolated signing, broadcast and receipt recovery remain unimplemented.

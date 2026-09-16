@@ -8,6 +8,7 @@ import { Hono } from "hono";
 import { desc, eq } from "drizzle-orm";
 import { positions } from "@rh/db";
 import { getDb } from "../db.js";
+import { ledgerBook, ledgerEnabled } from "../paper-ledger.js";
 import { decimalText, isRecord } from "../validation.js";
 import {
   getOpenPositions,
@@ -25,19 +26,23 @@ function recentMem(limit = 40): MemPaperPosition[] {
   const closedish = memPaperPositions.filter(
     (p) => p.status !== "simulated_open" && p.status !== "alert_fired"
   );
-  const merged = [...open, ...closedish];
+  // Never truncate open holdings. Telegram paginates; only recent closed rows are capped.
+  const merged = [...open, ...closedish.slice(0, Math.max(0, limit - open.length))];
   const seen = new Set<string>();
   const out: MemPaperPosition[] = [];
   for (const p of merged) {
     if (seen.has(p.id)) continue;
     seen.add(p.id);
     out.push(p);
-    if (out.length >= limit) break;
   }
   return out;
 }
 
 positionRoutes.get("/", async (c) => {
+  if (ledgerEnabled()) {
+    try { return c.json({ data: (await ledgerBook()).holdings, source: "postgres", paperOnly: true }); }
+    catch { return c.json({ error: "paper_book_unavailable" }, 503); }
+  }
   await hydrateOpenFromDb();
   const memRows = recentMem().map(toPositionPayload);
   const db = getDb();
@@ -113,6 +118,7 @@ positionRoutes.get("/", async (c) => {
  * Best-effort mirrors mark to postgres current_price when DB present.
  */
 positionRoutes.post("/:id/paper-mark", async (c) => {
+  if (ledgerEnabled()) return c.json({ error: "manual_marks_disabled_for_ledger" }, 409);
   const id = c.req.param("id");
   const body: unknown = await c.req.json().catch(() => null);
   if (!isRecord(body)) return c.json({ error: "invalid_json", paperOnly: true }, 400);
@@ -165,6 +171,9 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
   // Ensure DB opens are in mem before mark (e.g. post-restart)
   await hydrateOpenFromDb();
 
+  if (memPaperPositions.find((p) => p.id === id)?.entrySnapshot) {
+    return c.json({ error: "market_priced_position", note: "This position uses recorded market observations; manual overrides are disabled." }, 409);
+  }
   const pos = setPaperMark(id, mark, source);
   if (!pos) {
     return c.json(
@@ -182,7 +191,7 @@ positionRoutes.post("/:id/paper-mark", async (c) => {
     try {
       await db
         .update(positions)
-        .set({ currentPrice: pos.currentPrice, pnlAbs: pos.pnlAbs, pnlPct: pos.pnlPct })
+        .set({ currentPrice: pos.currentPrice, pnlAbs: pos.pnlAbs, pnlPct: pos.pnlPct, markSource: pos.markSource, markObservedAt: pos.markObservedAt ? new Date(pos.markObservedAt) : null })
         .where(eq(positions.id, id));
     } catch (err) {
       console.warn(

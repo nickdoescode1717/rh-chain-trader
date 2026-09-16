@@ -1,0 +1,71 @@
+import assert from 'node:assert/strict';
+import postgres from 'postgres';
+import { Hono } from 'hono';
+import { initDb } from '../dist/db.js';
+import { identityRoutes } from '../dist/routes/identity.js';
+import { purchaseProposalRoutes } from '../dist/routes/purchase-proposals.js';
+import { paperBalanceRoutes } from '../dist/routes/paper-balance.js';
+assert.match(new URL(process.env.DATABASE_URL).pathname,/^\/rh_pricing_test_[a-f0-9]{16}$/);
+assert.equal(process.env.IDENTITY_GATE_ENABLED,'true');assert.equal(process.env.PAPER_LEDGER_ENABLED,'true');
+const sql=postgres(process.env.DATABASE_URL);await initDb();
+const app=new Hono();app.route('/identity',identityRoutes);app.route('/purchase-proposals',purchaseProposalRoutes);app.route('/paper-balance',paperBalanceRoutes);
+const token='0x'+'a'.repeat(40),other='0x'+'b'.repeat(40),deployer='0x'+'c'.repeat(40),hash='0x'+'d'.repeat(64),source='https://project.org/token';
+await sql`insert into research_projects(handle,domain,enabled) values ('project','project.org',true)`;
+const quote={chainId:4663,tokenAddress:token,source:'dexscreener',pairId:'0x'+'e'.repeat(64),quoteAddress:'0x'+'0'.repeat(40),priceEth:0.001,priceUsd:2,liquidityUsd:100000,observedAt:new Date().toISOString(),sourceUpdatedAt:null,url:'https://dexscreener.com/robinhood/test'};
+await sql`insert into market_quotes(token_address,quote,last_attempt_at) values (${token},${sql.json(quote)},now())`;
+async function post(path,body={},secret=process.env.TELEGRAM_APPROVAL_TOKEN){const r=await app.request(path,{method:'POST',headers:{'content-type':'application/json','x-telegram-approval-token':secret},body:JSON.stringify(body)});return {status:r.status,body:await r.json()};}
+const decision=(path,extra={})=>post(path,{actor:'telegram:42',...extra});
+const read=async path=>(await (await app.request(path)).json()).data;
+async function proposal(ca=token,handle='project'){return (await post('/purchase-proposals',{projectHandle:handle,tokenCA:ca,sizeEth:'0.1',scores:{identityVerified:true,opportunity:100,risk:0,evidenceConfidence:1}})).body.data.id;}
+const pid=await proposal();
+const blocked=await decision(`/purchase-proposals/${pid}/approve`);assert.equal(blocked.status,409);assert.match(blocked.body.error,/identity_unverified/);
+assert.equal(Number((await read('/paper-balance')).cashEth),1);
+const draftBody={projectHandle:'project',tokenAddress:token,deployerAddress:deployer,creationTxHash:hash,sourceUrl:source};
+assert.equal((await post('/identity/claims',{...draftBody,reviewedAt:new Date().toISOString()})).status,400);
+const c=(await post('/identity/claims',draftBody)).body.data;assert.equal(c.reviewedAt,null);
+assert.equal((await decision(`/identity/${c.id}/review`)).status,409);
+// Evidence fixture replaces network collection only in this isolated database. Production APIs cannot submit a report.
+const report={version:1,source:{status:'matched',url:source,hash:'source-v1',excerpt:`Robinhood Chain Token address: ${token}`,addresses:[token],xLinked:false,reason:'match'},chain:{status:'matched',reason:'match',method:'direct_contract_creation',blockHash:'0x'+'f'.repeat(64),confirmations:12}};
+const save=async(r=report)=>sql`update identity_claims set report=${sql.json(r)},checked_at=now() where id=${c.id}`;
+await save();
+assert.equal((await decision(`/purchase-proposals/${pid}/approve`)).status,409); // evidence alone is not owner trust
+assert.equal((await post(`/identity/${c.id}/review`,{actor:'grok'})).status,403);
+const review=(await decision(`/identity/${c.id}/review`)).body.data.review;
+await save({...report,source:{...report.source,hash:'source-v2'}});
+assert.equal((await decision(`/identity/${review.id}/confirm`)).status,409);
+await save();
+const fresh=(await decision(`/identity/${c.id}/review`)).body.data.review;
+assert.equal((await decision(`/identity/${fresh.id}/confirm`)).body.data.verdict.status,'verified');
+assert.equal((await decision(`/identity/${fresh.id}/confirm`)).body.data.replayed,true);
+let list=await read('/purchase-proposals');assert.equal(list.find(p=>p.id===pid).issuerIdentity.status,'verified');
+const copy=await proposal(other);
+assert.match((await decision(`/purchase-proposals/${copy}/approve`)).body.error,/identity_conflicting/);
+assert.equal((await read('/purchase-proposals')).find(p=>p.id===copy).issuerIdentity.status,'conflicting');
+await sql`update research_projects set domain='changed.org' where handle='project'`;
+assert.match((await decision(`/purchase-proposals/${pid}/approve`)).body.error,/domain_changed/);
+await sql`update research_projects set domain='project.org' where handle='project'`;
+await sql`update identity_claims set checked_at=now()-interval '6 minutes' where id=${c.id}`;
+assert.match((await decision(`/purchase-proposals/${pid}/approve`)).body.error,/fresh_identity_checks/);
+await save({...report,chain:{status:'conflicting',reason:'deployment_block_not_canonical'}});
+assert.match((await decision(`/purchase-proposals/${pid}/approve`)).body.error,/identity_conflicting/);
+await save({...report,source:{...report.source,hash:'changed'}});
+assert.match((await decision(`/purchase-proposals/${pid}/approve`)).body.error,/source_changed/);
+await save();
+const results=await Promise.all([decision(`/purchase-proposals/${pid}/approve`),decision(`/purchase-proposals/${pid}/approve`)]);
+assert.ok(results.every(r=>r.status===200));assert.equal(results[0].body.fill.id,results[1].body.fill.id);
+assert.equal(results[0].body.fill.execution.identity.status,'verified');assert.equal(results[0].body.fill.execution.identity.sourceHash,'source-v1');
+assert.equal(Number((await read('/paper-balance')).cashEth),0.9);
+// Conflicting reviewed claims are not silently replaced. A new draft alone cannot poison existing trust.
+const second=(await post('/identity/claims',{...draftBody,tokenAddress:other,sourceUrl:'https://project.org/other'})).body.data;
+assert.equal((await read('/identity/projects/project')).verdict.status,'verified');
+await sql`update identity_claims set reviewed_at=now(),reviewed_by='telegram:42',reviewed_source_hash='other' where id=${second.id}`;
+assert.equal((await read('/identity/projects/project')).verdict.status,'conflicting');
+await decision(`/identity/${second.id}/revoke`);
+assert.equal((await read('/identity/projects/project')).verdict.status,'verified');
+await decision(`/identity/${c.id}/revoke`);
+assert.equal((await decision(`/purchase-proposals/${await proposal()}/approve`)).status,409);
+assert.equal((await decision(`/purchase-proposals/${pid}/approve`)).body.replayed,true); // historical fill replay is not a new buy
+await assert.rejects(sql`update identity_claims set token_address=${other} where id=${c.id}`);
+assert.equal((await sql`select count(*)::int n from paper_fills`)[0].n,1);
+console.log('PASS: no score/draft trust bypass; Telegram-only review; content-bound review; copycat/domain/stale/reorg conflicts; atomic identity-gated buy; immutable identity in fill; conflicting claim/revocation handling; historical idempotency.');
+await sql.end();process.exit(0);

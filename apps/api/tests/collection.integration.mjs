@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {Hono} from 'hono';
+import {initDb} from '../dist/db.js';
+import {collectionRoutes} from '../dist/routes/collection.js';
+assert.match(new URL(process.env.DATABASE_URL).pathname,/^\/rh_pricing_test_[a-f0-9]{16}$/);
+await initDb();const app=new Hono();app.route('/collection',collectionRoutes);
+const post=async(action,actor='telegram:42',secret=process.env.TELEGRAM_APPROVAL_TOKEN)=>app.request('/collection',{method:'POST',headers:{'content-type':'application/json','x-telegram-approval-token':secret},body:JSON.stringify({action,actor})});
+assert.equal((await post('stop','grok')).status,403);assert.equal((await post('chainon','telegram:42','wrong')).status,403);
+let r=await (await post('stop')).json();assert.equal(r.data.paused,true);assert.equal(r.data.chainEnabled,false);
+r=await (await post('run')).json();assert.equal(r.data.paused,false);assert.equal(r.data.chainEnabled,false);
+r=await (await post('chainon')).json();assert.equal(r.data.chainEnabled,true);
+r=await (await post('stop')).json();assert.equal(r.data.paused,true);assert.equal(r.data.chainEnabled,false);
+console.log('Collection API integration passed: owner authentication and persistent stop/run/chain controls.');process.exit(0);

@@ -1,3 +1,4 @@
+import {collectionPermit,collectionSignal} from "../collection-control.js";
 import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { isIP } from "node:net";
@@ -19,6 +20,7 @@ export type PublicPage = { url: string; status: number; contentType: string; tex
 
 /** HTTPS only, pinned public IPv4 resolution, verified TLS, capped response and no implicit redirects. */
 export async function readPublicPage(rawUrl: string, allowedRoot: string, redirects = 0): Promise<PublicPage> {
+  await collectionPermit();
   const url = new URL(rawUrl);
   const host = normalizeDomain(url.hostname);
   if (url.protocol !== "https:" || url.username || url.password || url.port || !withinDomain(host, allowedRoot)) throw new Error("url_outside_public_scope");
@@ -28,7 +30,7 @@ export async function readPublicPage(rawUrl: string, allowedRoot: string, redire
     const req = request(url, { family: 4, method: "GET",
       headers: { "User-Agent": "RHResearch/0.1 (public evidence)", Accept: "text/html,application/json,text/plain" },
       lookup: (_hostname, _options, callback) => callback(null, addresses[0].address, 4),
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.any([AbortSignal.timeout(12_000), collectionSignal()]),
     }, (res) => {
       const status = res.statusCode ?? 0;
       if ([301, 302, 303, 307, 308].includes(status)) {
@@ -55,3 +57,4 @@ export async function readPublicPage(rawUrl: string, allowedRoot: string, redire
   }
   return result;
 }
+

@@ -1,3 +1,6 @@
+import { collectionRoutes } from "./routes/collection.js";
+import { snipeRoutes } from "./routes/snipes.js";
+import { tickSnipes } from "./snipes.js";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -13,6 +16,8 @@ import { purchaseProposalRoutes } from "./routes/purchase-proposals.js";
 import { buyWalletRoutes } from "./routes/buy-wallets.js";
 import { paperBalanceRoutes } from "./routes/paper-balance.js";
 import { positionRoutes } from "./routes/positions.js";
+import { paperSellRoutes } from "./routes/paper-sells.js";
+import { identityRoutes } from "./routes/identity.js";
 import { discoveryRoutes } from "./routes/discovery.js";
 import { researchRoutes } from "./routes/research.js";
 
@@ -27,6 +32,8 @@ app.use(
 );
 
 app.route("/health", healthRoutes);
+app.route("/collection", collectionRoutes);
+app.route("/paper-snipes", snipeRoutes);
 app.route("/tokens", tokenRoutes);
 app.route("/watchlist", watchlistRoutes);
 app.route("/protocols", protocolRoutes);
@@ -36,6 +43,8 @@ app.route("/purchase-proposals", purchaseProposalRoutes);
 app.route("/buy-wallets", buyWalletRoutes);
 app.route("/paper-balance", paperBalanceRoutes);
 app.route("/positions", positionRoutes);
+app.route("/paper-sells", paperSellRoutes);
+app.route("/identity", identityRoutes);
 app.route("/discovery", discoveryRoutes);
 app.route("/research", researchRoutes);
 
@@ -65,6 +74,7 @@ app.get("/", (c) =>
       "/research/projects",
       "/research/projects/:handle",
       "/research/projects/:handle/grok-handoff",
+      "/research/projects/:handle/monitoring",
     ],
   })
 );
@@ -75,6 +85,9 @@ app.all("/orders/*", (c) =>
 );
 
 await initDb();
+// Completion-scheduled, DB-only evaluator; no overlapping ticks or network polling.
+async function scheduleSnipes() { try { await tickSnipes(); } catch { console.warn("[paper-snipe] evaluator unavailable"); } setTimeout(scheduleSnipes, 5000).unref(); }
+void scheduleSnipes();
 
 console.log(
   `[api] listening on http://${config.host}:${config.port} (chain ${config.chainId})`
@@ -85,3 +98,4 @@ serve({
   port: config.port,
   hostname: config.host,
 });
+

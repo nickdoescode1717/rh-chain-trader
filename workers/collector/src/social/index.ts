@@ -1,3 +1,4 @@
+import {waitForCollection} from "../collection-control.js";
 import { and, eq, asc, sql } from "drizzle-orm";
 import { createDb, socialAccounts, socialSignals } from "@rh/db";
 import { createXReader, XReadError } from "./x-client.js";
@@ -28,6 +29,7 @@ export async function runSocialLoop(): Promise<void> {
   let retryAt = 0;
   console.log("[social] X read-only discovery enabled; no signing or order submission");
   for (;;) {
+    await waitForCollection(false);
     try {
       if (Date.now() >= retryAt) {
         const accounts = await db.select().from(socialAccounts)
@@ -66,3 +68,4 @@ export async function runSocialLoop(): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, Math.min(pollMs, 60_000)));
   }
 }
+

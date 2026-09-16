@@ -6,7 +6,9 @@ The Discovery dashboard manages monitored X accounts and shows posts, address me
 
 Nick selected **TwitterAPI.io** on 2026-09-09 and asked to configure it later. This is the planned provider for X scanning; its adapter and credentials are not configured yet. The current scanner uses the official X API, so the instructions below describe only that existing implementation.
 
-When setup resumes, verify TwitterAPI.io's current endpoints, authentication, pagination, user-ID/handle behavior, post/profile/follower/following coverage, rate limits and costs against its documentation. Normalize its responses into the existing evidence/cursor flow and validate incomplete snapshots, deduplication and retry behavior. Do not merely substitute a TwitterAPI.io key into `X_BEARER_TOKEN` or change the base URL. Keep collection disabled until the adapter is ready. Grok remains the analysis and primary bot handoff layer, separate from this data-provider choice.
+Telegram is now the primary user interface and only trade-approval channel. Use the existing bot's project Watch/Pause/Resume controls; Grok remains backend analysis and proposal drafting only. The dashboard is optional administration.
+
+When setup resumes, verify TwitterAPI.io's current endpoints, authentication, pagination, user-ID/handle behavior, post/profile/follower/following coverage, rate limits and costs against its documentation. Normalize its responses into the existing evidence/cursor flow and validate incomplete snapshots, deduplication and retry behavior. Do not merely substitute a TwitterAPI.io key into `X_BEARER_TOKEN` or change the base URL. Keep collection disabled until the adapter is ready. Grok remains the analysis layer, separate from this data-provider choice and Telegram approval authority.
 
 ## Existing official X API setup (not TwitterAPI.io)
 

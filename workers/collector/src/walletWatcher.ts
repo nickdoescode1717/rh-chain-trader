@@ -1,3 +1,4 @@
+import {waitForCollection} from "./collection-control.js";
 /**
  * Watched-wallet Transfer poller (paper / research only).
  * Empty wallet list is valid — skip poll, stay healthy.
@@ -242,7 +243,7 @@ export async function runWalletWatcherLoop(
   rpc: RpcClient,
   intervalMs?: number
 ) {
-  const pollMs = intervalMs ?? Number(process.env.COLLECTOR_POLL_MS ?? 15_000);
+  const pollMs = Math.max(300_000, intervalMs ?? Number(process.env.COLLECTOR_POLL_MS ?? 300_000)) || 300_000;
   const chainId = rpc.chainId || CHAIN_ID;
   const lookback = Number(process.env.COLLECTOR_LOOKBACK_BLOCKS ?? 5_000);
   // Alchemy free-tier: keep LOG_BLOCK_WINDOW small (~10)
@@ -279,21 +280,8 @@ export async function runWalletWatcherLoop(
   let cursor = loadCursor(0);
   let loggedEmpty = false;
 
-  if (cursor.lastBlock === 0 && rpc.configured) {
-    const head = await rpc.getBlockNumber();
-    if (head != null) {
-      cursor = {
-        lastBlock: Math.max(0, head - lookback),
-        updatedAt: new Date().toISOString(),
-      };
-      saveCursor(cursor);
-      console.log(
-        `[wallet-watcher] initialized cursor at block ${cursor.lastBlock}`
-      );
-    }
-  }
-
   for (;;) {
+    await waitForCollection(true);
     try {
       if (!db) {
         // Stay healthy without DB
@@ -326,8 +314,9 @@ export async function runWalletWatcherLoop(
           loggedEmpty = false;
           const head = await rpc.getBlockNumber();
           if (head != null) {
+            if (cursor.lastBlock === 0) cursor.lastBlock = Math.max(0, head - lookback);
             const fromBlock = cursor.lastBlock + 1;
-            const toBlock = head;
+            const toBlock = Math.min(head, fromBlock + 1999);
             if (fromBlock <= toBlock) {
               let ingested = 0;
               // One eth_getLogs per watched wallet (topic2 = to), small windows
@@ -370,3 +359,6 @@ export async function runWalletWatcherLoop(
     await sleep(pollMs);
   }
 }
+
+
+
