@@ -19,8 +19,8 @@ const first=(await post(`/paper-sells/${position.id}/preview`,{percent:25})).bod
 assert.equal(first.queued,true);assert.equal(first.phase,'quote');
 async function installQuote(id,net,status){
  const [intent]=await sql`select * from paper_sell_intents where id=${id}`;
- const now=Date.now(),report={version:1,venue:'pons-v2-native-curve',status:'passed',reason:'exact_curve_reserve_quote',observedAt:new Date(now-100).toISOString(),expiresAt:new Date(now+50_000).toISOString(),requestedAt:intent.route_requested_at.toISOString(),chainId:4663,
-  tokenAddress:token,deployerAddress:deployer,quantity:'25',simulationWallet:'0x'+'1'.repeat(40),curveAddress:curve,blockNumber:100,blockHash:'0x'+'d'.repeat(64),blockTimestamp:Math.floor(now/1000),grossQuoteEth:decimal(units(net)+units('0.003')),baseFeeEth:'0.001',creatorTaxEth:'0.002',netQuoteEth:net,limitations:[]};
+ const now=Date.now(),blockTimestamp=Math.floor(now/1000),report={version:1,venue:'pons-v2-native-curve',status:'passed',reason:'exact_curve_reserve_quote',observedAt:intent.route_requested_at.toISOString(),expiresAt:new Date((blockTimestamp+50)*1000).toISOString(),requestedAt:intent.route_requested_at.toISOString(),chainId:4663,
+  tokenAddress:token,deployerAddress:deployer,quantity:'25',simulationWallet:'0x'+'1'.repeat(40),curveAddress:curve,blockNumber:100,blockHash:'0x'+'d'.repeat(64),blockTimestamp,grossQuoteEth:decimal(units(net)+units('0.003')),baseFeeEth:'0.001',creatorTaxEth:'0.002',netQuoteEth:net,limitations:[]};
  const execution=routePaperSell('100','0.1',25,report,{token,deployer,requestedAt:intent.route_requested_at},now);
  await sql`update paper_sell_intents set route_report=${sql.json(report)},route_checked_at=now(),preview=${sql.json(execution)},minimum_net=${decimal(units(net)*9900n/10000n)},status=${status},expires_at=${report.expiresAt} where id=${id}`;
  return {report,execution};
